@@ -1,0 +1,18 @@
+#version 330 core
+
+// task define input variable from vertex shader
+flat in vec3 color;
+in vec2 UV;
+
+out vec3 fragmentColor; 
+uniform sampler2D textureSampler;
+// task define output variable of the fragment color
+
+void main()
+{
+    // task assign color to fragment output variable 
+	
+	//fragmentColor = vec3(1, 1, 0);
+
+	fragmentColor = (vec4(color, 0.8f) * texture(textureSampler, UV)).rgb;
+}

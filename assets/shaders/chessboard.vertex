@@ -1,0 +1,25 @@
+#version 330 core
+
+// task define attribute input
+layout(location = 0) in vec3 vertexPosition_modelspace;
+layout(location = 1) in vec3 vertexColor;
+layout(location = 2) in vec2 UVin;
+
+flat out vec3 color;
+out vec2 UV;
+
+uniform mat4 P;
+uniform mat4 V;
+uniform mat4 M;
+
+void main()
+{
+    // task assign homogeneous position to gl_Position
+    gl_Position =  P * V * M * vec4(vertexPosition_modelspace, 1);
+    
+    // task propagate color to fragment shader
+    color = vertexColor;
+    UV = UVin;
+    // task change the size of points (gl_PointSize)
+}
+

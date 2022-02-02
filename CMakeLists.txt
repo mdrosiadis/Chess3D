@@ -80,5 +80,5 @@ target_link_libraries(Chess3D
   )
 
 # copy assets
-add_custom_command(TARGET Chess3D POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets/ ${CMAKE_CURRENT_BINARY_DIR}/assets/)
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} PRE_BUILD
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets)

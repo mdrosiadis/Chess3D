@@ -1,4 +1,4 @@
 build/
 .clangd/
 compile_commands.json
-
+assets/models/blenderfiles/
