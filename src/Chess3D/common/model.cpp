@@ -351,11 +351,11 @@ Drawable::~Drawable() {
     glDeleteBuffers(1, &VAO);
 }
 
-void Drawable::bind() {
+void Drawable::bind() const {
     glBindVertexArray(VAO);
 }
 
-void Drawable::draw(int mode) {
+void Drawable::draw(int mode) const {
     glDrawElements(mode, indices.size(), GL_UNSIGNED_INT, NULL);
 }
 

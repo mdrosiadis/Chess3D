@@ -16,6 +16,7 @@
 #include "common/model.h"
 #include "common/camera.h"
 #include "common/texture.h"
+#include "common/light.h"
 
 using namespace std;
 
@@ -30,11 +31,103 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 #define W_HEIGHT 768
 #define TITLE "Chess3D"
 
+#define SHADOW_WIDTH 1024
+#define SHADOW_HEIGHT 1024
+
+struct Material {
+    glm::vec4 Ka;
+    glm::vec4 Kd;
+    glm::vec4 Ks;
+	float Ns;
+};
+
+const Material polishedSilver{
+	{0.23125, 0.23125, 0.23125, 1},
+	{0.2775, 0.2775, 0.2775, 1},
+	{0.773911, 0.773911, 0.773911, 1},
+	89.6f
+};
+
 // Global variables
 GLFWwindow* window;
 GLuint chessboardShader, piecesShader;
 GLuint projectionMatrixLocation, viewMatrixLocation, modelMatrixLocation;
 GLuint pieceProjection, pieceView, pieceModel, pieceColor;
+GLuint chessboardVAO, chessboardVBO, chessboardEBO;
+GLuint textureSampler, texture;
+GLuint KaLocation, KdLocation, KsLocation, NsLocation;
+GLuint LaLocation, LdLocation, LsLocation;
+GLuint lightPositionLocation;
+GLuint lightPowerLocation;
+GLuint diffuseColorSampler; 
+GLuint specularColorSampler;
+GLuint useTextureLocation;
+GLuint depthMapSampler;
+GLuint lightVPLocation;
+GLuint lightDirectionLocation;
+GLuint lightFarPlaneLocation;
+GLuint lightNearPlaneLocation;
+
+// Global chessboard colors
+glm::vec3 colors[2] = { 
+    { 51.f / 255.f,  36.f / 255.f,  13.f / 255.f},        
+    {210.f / 255.f, 169.f / 255.f, 105.f / 255.f}
+};
+
+void create_chessboard();
+
+void uploadLight(const Light& light) {
+	glUniform4f(LaLocation, light.La.r, light.La.g, light.La.b, light.La.a);
+	glUniform4f(LdLocation, light.Ld.r, light.Ld.g, light.Ld.b, light.Ld.a);
+	glUniform4f(LsLocation, light.Ls.r, light.Ls.g, light.Ls.b, light.Ls.a);
+	glUniform3f(lightPositionLocation, light.lightPosition_worldspace.x,
+		light.lightPosition_worldspace.y, light.lightPosition_worldspace.z);
+	glUniform1f(lightPowerLocation, light.power);
+}
+
+
+// Creating a function to upload the material parameters of a model to the shader program
+void uploadMaterial(const Material& mtl) {
+	glUniform4f(KaLocation, mtl.Ka.r, mtl.Ka.g, mtl.Ka.b, mtl.Ka.a);
+	glUniform4f(KdLocation, mtl.Kd.r, mtl.Kd.g, mtl.Kd.b, mtl.Kd.a);
+	glUniform4f(KsLocation, mtl.Ks.r, mtl.Ks.g, mtl.Ks.b, mtl.Ks.a);
+	glUniform1f(NsLocation, mtl.Ns);
+}
+void renderScene(const Camera& camera, const Drawable& test)
+{
+
+    glm::mat4 modelMatrix = glm::mat4(1.0);
+
+    // Task 1.4c: transfer uniforms to GPU
+    glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+    glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+    glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+
+    
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glUniform1i(textureSampler, 0);
+
+    glBindVertexArray(chessboardVAO);
+    glDrawElements(GL_TRIANGLES, 64*6, GL_UNSIGNED_INT, 0);
+
+    glBindVertexArray(0);
+
+    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f, 0.0f, 3.5f});
+
+    glUseProgram(piecesShader);
+
+    glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+    glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+    glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
+   
+    glm::vec3 black(0.0f);
+    glUniform3fv(pieceColor, 1, &black[0]);
+
+    test.bind();
+    test.draw(); 
+}
 
 void createContext() {
     // Create and compile our GLSL program from the shaders
@@ -70,6 +163,9 @@ void createContext() {
 
     // enable textures
     glEnable(GL_TEXTURE_2D);
+
+
+    create_chessboard();
 }
 
 void free() {
@@ -81,15 +177,8 @@ void free() {
     glfwTerminate();
 }
 
-void mainLoop() {
-    
-    // Create a camera
-    Camera camera(window);
-    Drawable test("assets/models/blenderfiles/set1/exports/rook.obj");
-
-    GLuint textureSampler = glGetUniformLocation(chessboardShader, "textureSampler");
-    GLuint texture = loadSOIL("assets/textures/wood.bmp");
-
+void create_chessboard()
+{
     // create chessboard
     struct BoardPoint 
     {
@@ -98,10 +187,6 @@ void mainLoop() {
         glm::vec2 uv;
     };
     
-    glm::vec3 colors[2] = { 
-        { 51.f / 255.f,  36.f / 255.f,  13.f / 255.f},        
-        {210.f / 255.f, 169.f / 255.f, 105.f / 255.f}
-    };
     
     BoardPoint chessboard_points[9*9];
     GLuint chessboard_elements[2*3*8*8]; 
@@ -136,7 +221,6 @@ void mainLoop() {
     }
 
     // Send data to gpu 
-    GLuint chessboardVAO, chessboardVBO, chessboardEBO;
     glGenVertexArrays(1, &chessboardVAO);
     glBindVertexArray(chessboardVAO);
 
@@ -157,6 +241,19 @@ void mainLoop() {
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BoardPoint), ((GLfloat*) NULL) + 6);
     glEnableVertexAttribArray(2);
 
+}
+
+void mainLoop() {
+    
+    // Create a camera
+    Camera camera(window);
+    Drawable rook("assets/models/rook.obj");
+
+
+    textureSampler = glGetUniformLocation(chessboardShader, "textureSampler");
+    texture = loadSOIL("assets/textures/wood.bmp");
+
+
     camera.position = glm::vec3(0.0f, 5.0f, 9.0f);
 
     do {
@@ -168,39 +265,8 @@ void mainLoop() {
         // Draw
         glUseProgram(chessboardShader);
 
-        // MVP
-        glm::mat4 modelMatrix = glm::mat4(1.0);
+        renderScene(camera, rook);
 
-        // Task 1.4c: transfer uniforms to GPU
-        glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
-        glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &camera.viewMatrix[0][0]);
-        glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, &modelMatrix[0][0]);
-
-        
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        // Set our "textureSampler" sampler to use Texture Unit 0
-        glUniform1i(textureSampler, 0);
-    
-        glBindVertexArray(chessboardVAO);
-        glDrawElements(GL_TRIANGLES, 64*6, GL_UNSIGNED_INT, 0);
-
-        glBindVertexArray(0);
-
-        modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f, 0.0f, 3.5f});
-
-        glUseProgram(piecesShader);
-
-        glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
-        glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
-        glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
-       
-        glm::vec3 black(0.0f);
-        glUniform3fv(pieceColor, 1, &black[0]);
-
-        test.bind();
-        test.draw(); 
-		
         // Swap buffers
         glfwSwapBuffers(window);
 
@@ -279,3 +345,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     // height will be significantly larger than specified on retina displays.
     glViewport(0, 0, width, height);
 }
+
+
+

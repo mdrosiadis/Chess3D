@@ -72,10 +72,10 @@ public:
 
     ~Drawable();
 
-    void bind();
+    void bind() const;
 
     /* Bind VAO before calling draw */
-    void draw(int mode = GL_TRIANGLES);
+    void draw(int mode = GL_TRIANGLES) const;
 
 public:
     std::vector<glm::vec3> vertices, normals, indexedVertices, indexedNormals;
