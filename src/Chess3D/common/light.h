@@ -1,3 +1,4 @@
+#include <glfw3.h>
 #include <glm/glm.hpp>
 
 class Light {
@@ -27,6 +28,8 @@ public:
     glm::vec3 targetPosition;
 
     // Constructor
+    Light() = default;
+
     Light(GLFWwindow* window,
         glm::vec4 init_La,
         glm::vec4 init_Ld,

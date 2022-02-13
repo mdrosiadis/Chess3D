@@ -1,6 +1,7 @@
 #ifndef CAMERA_HPP
 #define CAMERA_HPP
 
+#include <glfw3.h>
 #include <glm/glm.hpp>
 
 class Camera {
@@ -20,6 +21,7 @@ public:
     float mouseSpeed;
     float fovSpeed;
 
+    Camera() = default;
     Camera(GLFWwindow* window);
     void update();
 };

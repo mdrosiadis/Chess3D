@@ -26,13 +26,15 @@ void createContext();
 void mainLoop();
 void free();
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void lighting_pass();
+void depth_pass(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
 
 #define W_WIDTH 1024
 #define W_HEIGHT 768
 #define TITLE "Chess3D"
 
-#define SHADOW_WIDTH 1024
-#define SHADOW_HEIGHT 1024
+#define SHADOW_WIDTH 4096
+#define SHADOW_HEIGHT 4096
 
 struct Material {
     glm::vec4 Ka;
@@ -42,15 +44,19 @@ struct Material {
 };
 
 const Material polishedSilver{
-	{0.23125, 0.23125, 0.23125, 1},
-	{0.2775, 0.2775, 0.2775, 1},
-	{0.773911, 0.773911, 0.773911, 1},
-	89.6f
+	{  0.0215,    0.1475,   0.0215, 0.55},
+	{ 0.07568,   0.61424,  0.07568, 0.55},
+	{   0.633,  0.727811,    0.633, 0.55},
+	76.8f
 };
+
+static Light sceneLight;
+static Camera camera;
+static Drawable *rook;
 
 // Global variables
 GLFWwindow* window;
-GLuint chessboardShader, piecesShader;
+GLuint chessboardShader, piecesShader, shadowShader, depthShader;
 GLuint projectionMatrixLocation, viewMatrixLocation, modelMatrixLocation;
 GLuint pieceProjection, pieceView, pieceModel, pieceColor;
 GLuint chessboardVAO, chessboardVBO, chessboardEBO;
@@ -60,13 +66,14 @@ GLuint LaLocation, LdLocation, LsLocation;
 GLuint lightPositionLocation;
 GLuint lightPowerLocation;
 GLuint diffuseColorSampler; 
-GLuint specularColorSampler;
-GLuint useTextureLocation;
 GLuint depthMapSampler;
 GLuint lightVPLocation;
 GLuint lightDirectionLocation;
 GLuint lightFarPlaneLocation;
 GLuint lightNearPlaneLocation;
+GLuint shadowViewProjectionLocation, shadowModelLocation;
+GLuint depthFrameBuffer, depthTexture;
+GLuint colorsLocation;
 
 // Global chessboard colors
 glm::vec3 colors[2] = { 
@@ -76,13 +83,16 @@ glm::vec3 colors[2] = {
 
 void create_chessboard();
 
-void uploadLight(const Light& light) {
-	glUniform4f(LaLocation, light.La.r, light.La.g, light.La.b, light.La.a);
-	glUniform4f(LdLocation, light.Ld.r, light.Ld.g, light.Ld.b, light.Ld.a);
-	glUniform4f(LsLocation, light.Ls.r, light.Ls.g, light.Ls.b, light.Ls.a);
-	glUniform3f(lightPositionLocation, light.lightPosition_worldspace.x,
+void uploadLightToShader(GLuint shader, const Light& light) {
+	glUniform4f(glGetUniformLocation(shader, "light.La"), light.La.r, light.La.g, light.La.b, light.La.a);
+	glUniform4f(glGetUniformLocation(shader, "light.Ld"), light.Ld.r, light.Ld.g, light.Ld.b, light.Ld.a);
+	glUniform4f(glGetUniformLocation(shader, "light.Ls"), light.Ls.r, light.Ls.g, light.Ls.b, light.Ls.a);
+	glUniform3f(glGetUniformLocation(shader, "light.lightPosition_worldspace"), light.lightPosition_worldspace.x,
 		light.lightPosition_worldspace.y, light.lightPosition_worldspace.z);
-	glUniform1f(lightPowerLocation, light.power);
+	glUniform1f(glGetUniformLocation(shader, "light.power"), light.power);
+    
+	const glm::mat4 lightVp = sceneLight.projectionMatrix * sceneLight.viewMatrix;
+	glUniformMatrix4fv(glGetUniformLocation(shader, "lightVP"), 1, GL_FALSE, &lightVp[0][0]);
 }
 
 
@@ -93,56 +103,87 @@ void uploadMaterial(const Material& mtl) {
 	glUniform4f(KsLocation, mtl.Ks.r, mtl.Ks.g, mtl.Ks.b, mtl.Ks.a);
 	glUniform1f(NsLocation, mtl.Ns);
 }
-void renderScene(const Camera& camera, const Drawable& test)
+void renderScene(bool renderDepth=false)
 {
 
     glm::mat4 modelMatrix = glm::mat4(1.0);
 
     // Task 1.4c: transfer uniforms to GPU
-    glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
-    glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &camera.viewMatrix[0][0]);
-    glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, &modelMatrix[0][0]);
 
-    
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    if(!renderDepth)
+    {
+        glUseProgram(chessboardShader);
+        
+        // uploading the light parameters to the shader program
+        uploadLightToShader(chessboardShader, sceneLight);
+        glUniform3fv(colorsLocation, 2, &colors[0][0]);
 
-    glUniform1i(textureSampler, 0);
+        glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+        glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+        glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, depthTexture);
+        glUniform1i(glGetUniformLocation(chessboardShader, "shadowMapSampler") ,0);
+
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        glUniform1i(textureSampler, 1);
+    }
+    else
+    {
+        glUniformMatrix4fv(shadowModelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+    }
 
     glBindVertexArray(chessboardVAO);
     glDrawElements(GL_TRIANGLES, 64*6, GL_UNSIGNED_INT, 0);
 
-    glBindVertexArray(0);
+    double tn = glfwGetTime();
+    float offset = (tn / 3.0) - ((int) (tn / 3.0));
+    /* offset = 0.5; */
+    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + offset * 7, 0.0f, 3.5f - offset * 7});
 
-    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f, 0.0f, 3.5f});
+    if(!renderDepth)
+    {
+        glUseProgram(shadowShader);
 
-    glUseProgram(piecesShader);
+        glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+        glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+        glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
 
-    glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
-    glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
-    glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
+        uploadLightToShader(shadowShader, sceneLight);
+        uploadMaterial(polishedSilver);
+    }
+    else
+    {
+        glUniformMatrix4fv(shadowModelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+    }
    
-    glm::vec3 black(0.0f);
-    glUniform3fv(pieceColor, 1, &black[0]);
-
-    test.bind();
-    test.draw(); 
+    rook->bind();
+    rook->draw();
 }
 
 void createContext() {
     // Create and compile our GLSL program from the shaders
     chessboardShader = loadShaders("assets/shaders/chessboard.vertex", "assets/shaders/chessboard.fragment");
-    piecesShader = loadShaders("assets/shaders/pieces.vertex", "assets/shaders/pieces.fragment");
+    /* piecesShader = loadShaders("assets/shaders/pieces.vertex", "assets/shaders/pieces.fragment"); */
+    
+    shadowShader = loadShaders("assets/shaders/shadowmapping.vetrex", "assets/shaders/shadowmapping.fragment");
+    depthShader = loadShaders("assets/shaders/depth.vertex", "assets/shaders/depth.fragment");
 
+    
     projectionMatrixLocation = glGetUniformLocation(chessboardShader, "P");
     viewMatrixLocation = glGetUniformLocation(chessboardShader, "V");
     modelMatrixLocation = glGetUniformLocation(chessboardShader, "M");
     
 
-    pieceProjection = glGetUniformLocation(piecesShader, "P");
-    pieceView = glGetUniformLocation(piecesShader, "V");
-    pieceModel = glGetUniformLocation(piecesShader, "M");
-    pieceColor = glGetUniformLocation(piecesShader, "color");
+    pieceProjection = glGetUniformLocation(shadowShader, "P");
+    pieceView = glGetUniformLocation(shadowShader, "V");
+    pieceModel = glGetUniformLocation(shadowShader, "M");
+    // pieceColor = glGetUniformLocation(piecesShader, "color");
+
+    colorsLocation = glGetUniformLocation(chessboardShader, "colors");
 
     // Draw wire frame triangles or fill: GL_LINE, or GL_FILL
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -150,7 +191,7 @@ void createContext() {
     // enable point size
     glEnable(GL_PROGRAM_POINT_SIZE);
 
-    glClearColor(0.5f, 0.5f, 0.5f, 0.0f);
+    glClearColor(0.8f, 0.8f, 0.8f, 0.0f);
 
     // Enable depth test
     glEnable(GL_DEPTH_TEST);
@@ -164,14 +205,92 @@ void createContext() {
     // enable textures
     glEnable(GL_TEXTURE_2D);
 
+    
+	// Tell opengl to generate a framebuffer
+	glGenFramebuffers(1, &depthFrameBuffer);
+	// Binding the framebuffer, all changes bellow will affect the binded framebuffer
+	// **Don't forget to bind the default framebuffer at the end of initialization
+	glBindFramebuffer(GL_FRAMEBUFFER, depthFrameBuffer);
+
+
+	// We need a texture to store the depth image
+	glGenTextures(1, &depthTexture);
+	glBindTexture(GL_TEXTURE_2D, depthTexture);
+	// Telling opengl the required information about the texture
+	// Use the depth component to create the texture
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0,
+		GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);							// Task 4.5 Texture wrapping methods
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);							// GL_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER
+	
+
+	// Task 4.5 Don't shadow area out of light's viewport
+	// Step 1 : (Don't forget to comment out the respective lines above
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	// Set color to set out of border 
+	float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	// Next go to fragment shader and add an if statement, so if the distance in the z-buffer is equal to 1, 
+	// meaning that the fragment is out of the texture border (or further than the far clip plane) 
+	// then the shadow value is 0.
+	 
+	// Task 3.2 Continue
+	// Attaching the texture to the framebuffer, so that it will monitor the depth component
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+	
+
+	// Since the depth buffer is only for the generation of the depth texture, 
+	// there is no need to have a color output
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+
+
+	// Finally, we have to always check that our frame buffer is ok
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		glfwTerminate();
+		throw runtime_error("Frame buffer not initialized correctly");
+	}
+
+	// Binding the default framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+	// for phong lighting
+	KaLocation = glGetUniformLocation(shadowShader, "mtl.Ka");
+	KdLocation = glGetUniformLocation(shadowShader, "mtl.Kd");
+	KsLocation = glGetUniformLocation(shadowShader, "mtl.Ks");
+	NsLocation = glGetUniformLocation(shadowShader, "mtl.Ns");
+	
+	// locations for shadow rendering
+	depthMapSampler = glGetUniformLocation(shadowShader, "shadowMapSampler");
+	lightVPLocation = glGetUniformLocation(shadowShader, "lightVP");
+
+
+	// --- depthProgram ---
+	shadowViewProjectionLocation = glGetUniformLocation(depthShader, "VP");
+	shadowModelLocation = glGetUniformLocation(depthShader, "M");
 
     create_chessboard();
+
+    camera = Camera(window);
+    rook = new Drawable("assets/models/rook.obj");
+
+    sceneLight = Light(window, {0.5f, 0.5f, 0.5f, 1.0f},
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               {0.0f, 7.0f, 0.0f},
+                               200.f);
 }
 
 void free() {
     // Free allocated buffers
     glDeleteProgram(chessboardShader);
-    glDeleteProgram(piecesShader);
+    /* glDeleteProgram(piecesShader); */
+    glDeleteProgram(shadowShader);
+    glDeleteProgram(depthShader);
+    delete rook;
 
     // Close OpenGL window and terminate GLFW
     glfwTerminate();
@@ -183,7 +302,7 @@ void create_chessboard()
     struct BoardPoint 
     {
         glm::vec3 pos;
-        glm::vec3 color;
+        int n;
         glm::vec2 uv;
     };
     
@@ -193,17 +312,20 @@ void create_chessboard()
 
     // create vertices
     int point_count = 0;
+    int sqcount = 0;
     for(int y=4; y >=-4; --y)
     for(int x=-4; x <=4; ++x)
     {
         chessboard_points[point_count].pos = {(GLfloat) x, 0.0f, (GLfloat) y};
         
-        chessboard_points[point_count].color = colors[point_count & 1];
+        chessboard_points[point_count].n = sqcount;
         chessboard_points[point_count].uv = glm::vec2((x+4) / 8.0f, (y+4) / 8.0f);
+        
+        if(x != 4) sqcount++;
 
         point_count++;
     }
-    
+
     // create elements
     int element_count = 0;
     for(int y=0; y < 8; ++y)
@@ -235,22 +357,17 @@ void create_chessboard()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(BoardPoint), NULL);
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(BoardPoint), ((GLfloat*) NULL) + 3);
+    glVertexAttribIPointer(1, 1, GL_INT, sizeof(BoardPoint), ((GLfloat*) NULL) + 3);
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BoardPoint), ((GLfloat*) NULL) + 6);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(BoardPoint), ((GLfloat*) NULL) + 4);
     glEnableVertexAttribArray(2);
 
 }
 
 void mainLoop() {
     
-    // Create a camera
-    Camera camera(window);
-    Drawable rook("assets/models/rook.obj");
-
-
-    textureSampler = glGetUniformLocation(chessboardShader, "textureSampler");
+    textureSampler = glGetUniformLocation(chessboardShader, "diffuseColorSampler");
     texture = loadSOIL("assets/textures/wood.bmp");
 
 
@@ -261,11 +378,10 @@ void mainLoop() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         camera.update();
-	
+        sceneLight.update();	
         // Draw
-        glUseProgram(chessboardShader);
-
-        renderScene(camera, rook);
+        depth_pass(sceneLight.viewMatrix, sceneLight.projectionMatrix);
+        lighting_pass();
 
         // Swap buffers
         glfwSwapBuffers(window);
@@ -348,3 +464,40 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 
 
+void depth_pass(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix) {
+
+	// Setting viewport to shadow map size
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+
+	// Binding the depth framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, depthFrameBuffer);
+
+	// Cleaning the framebuffer depth information (stored from the last render)
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	// Selecting the new shader program that will output the depth component
+	glUseProgram(depthShader);
+
+	// sending the view and projection matrix to the shader
+	const glm::mat4 view_projection = projectionMatrix * viewMatrix ;
+	glUniformMatrix4fv(shadowViewProjectionLocation, 1, GL_FALSE, &view_projection[0][0]);
+
+
+	// ---- rendering the scene ---- //
+    renderScene(true);
+	// binding the default framebuffer again
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+}
+
+void lighting_pass() {
+
+	// Step 1: Binding a frame buffer
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, W_WIDTH, W_HEIGHT);
+
+	// Step 2: Clearing color and depth info
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    renderScene();
+}

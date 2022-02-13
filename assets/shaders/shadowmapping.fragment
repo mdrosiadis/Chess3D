@@ -1,22 +1,16 @@
 #version 330 core
 
-// task define input variable from vertex shader
-flat in int square_n;
 in vec3 vertex_position_worldspace;
 in vec3 vertex_position_cameraspace;
 in vec3 vertex_normal_cameraspace;
 in vec2 vertex_UV;
 in vec4 vertex_position_lightspace; // shading
+// in int
 
 uniform sampler2D shadowMapSampler;
-uniform sampler2D diffuseColorSampler;
 
 uniform mat4 V;
 
-uniform vec3 colors[2]; // black, white colors
-
-
-out vec4 fragmentColor; 
 // Phong 
 // light properties
 struct Light {
@@ -26,25 +20,36 @@ struct Light {
     vec3 lightPosition_worldspace;
     float power;
 };
-
 uniform Light light;
-// task define output variable of the fragment color
+
+// materials
+struct Material {
+    vec4 Ka; 
+    vec4 Kd;
+    vec4 Ks;
+    float Ns; 
+};
+uniform Material mtl;
+
+out vec4 fragmentColor;
 
 void phong(float visibility);
 float ShadowCalculation(vec4 fragPositionLightspace);
 
-void main()
-{
-    // task assign color to fragment output variable 
-	
+
+
+void main() {   
+    
+    // Task 4.3
     float shadow  = ShadowCalculation(vertex_position_lightspace);
 
-
+    shadow = 0;
     float visibility = 1.0f - shadow;
     phong(visibility);
 }
 
 
+// 1 -> shadow, 0 -> not shadow
 float ShadowCalculation(vec4 vertexPositionLightspace){
     // Given the position of a fragment in lightspace coordinates
     // We sample the depth buffer to see whether or not the fragment is shadowed
@@ -98,17 +103,13 @@ float ShadowCalculation(vec4 vertexPositionLightspace){
 
 }
 
-
 void phong(float visibility) {
+   
+    vec4 _Ks = mtl.Ks;
+    vec4 _Kd = mtl.Kd;
+    vec4 _Ka = mtl.Ka;
+    float _Ns = mtl.Ns;
 
-	vec3 c = colors[((square_n >> 3) ^ square_n) & 1];
-
-	vec4 _Ks = vec4(0.1f, 0.1f, 0.1f, 1.0f); //vec4(texture(diffuseColorSampler, vertex_UV).rgb, 1.0);
-	vec4 _Kd = (vec4(c, 0.8f) * texture(diffuseColorSampler, vertex_UV));
-	vec4 _Ka = vec4(0.1, 0.1, 0.1, 1.0);
-    float _Ns = 10;
-    
-    // model ambient intensity (Ia)
     vec4 Ia = light.La * _Ka;
 
     // model diffuse intensity (Id)
@@ -133,4 +134,5 @@ void phong(float visibility) {
         Ia + 
         visibility * Id * light.power / distance_sq +   // Task 4.3 Use visibility
         visibility * Is * light.power / distance_sq);
+    
 }
