@@ -9,6 +9,7 @@
 #include <glfw3.h>
 
 #include <glm/ext/matrix_transform.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 // Shader loading utilities and other
 #include "common/shader.h"
@@ -54,6 +55,7 @@ static Light sceneLight;
 static Camera camera;
 static Drawable *rook;
 
+int cursorFile = 0, cursorRank = 0;
 // Global variables
 GLFWwindow* window;
 GLuint chessboardShader, piecesShader, shadowShader, depthShader;
@@ -74,6 +76,9 @@ GLuint lightNearPlaneLocation;
 GLuint shadowViewProjectionLocation, shadowModelLocation;
 GLuint depthFrameBuffer, depthTexture;
 GLuint colorsLocation;
+GLuint selectionsLocation;
+
+int selections[8][8] = {0};
 
 // Global chessboard colors
 glm::vec3 colors[2] = { 
@@ -121,6 +126,8 @@ void renderScene(bool renderDepth=false)
         glUniformMatrix4fv(projectionMatrixLocation, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
         glUniformMatrix4fv(viewMatrixLocation, 1, GL_FALSE, &camera.viewMatrix[0][0]);
         glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+        
+        glUniform1iv(selectionsLocation, 64, &selections[0][0]);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, depthTexture);
@@ -139,10 +146,10 @@ void renderScene(bool renderDepth=false)
     glBindVertexArray(chessboardVAO);
     glDrawElements(GL_TRIANGLES, 64*6, GL_UNSIGNED_INT, 0);
 
-    double tn = glfwGetTime();
-    float offset = (tn / 3.0) - ((int) (tn / 3.0));
-    /* offset = 0.5; */
-    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + offset * 7, 0.0f, 3.5f - offset * 7});
+    /* double tn = glfwGetTime(); */
+    /* float offset = (tn / 3.0) - ((int) (tn / 3.0)); */
+
+    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + cursorFile, 0.0f, 3.5f - cursorRank});
 
     if(!renderDepth)
     {
@@ -176,7 +183,7 @@ void createContext() {
     projectionMatrixLocation = glGetUniformLocation(chessboardShader, "P");
     viewMatrixLocation = glGetUniformLocation(chessboardShader, "V");
     modelMatrixLocation = glGetUniformLocation(chessboardShader, "M");
-    
+    selectionsLocation = glGetUniformLocation(chessboardShader, "selections"); 
 
     pieceProjection = glGetUniformLocation(shadowShader, "P");
     pieceView = glGetUniformLocation(shadowShader, "V");
@@ -275,13 +282,18 @@ void createContext() {
     create_chessboard();
 
     camera = Camera(window);
+	camera.position = glm::vec3(0.f, 5.f, 9.f);
+	camera.lookTo = glm::vec3(0.f, 0.f, 0.f);
+
     rook = new Drawable("assets/models/rook.obj");
 
-    sceneLight = Light(window, {0.5f, 0.5f, 0.5f, 1.0f},
+    sceneLight = Light(window, {1.0f, 1.0f, 1.0f, 1.0f},
                                {1.0f, 1.0f, 1.0f, 1.0f},
                                {1.0f, 1.0f, 1.0f, 1.0f},
                                {0.0f, 7.0f, 0.0f},
                                200.f);
+
+    /* selections[1][2] = 1; */
 }
 
 void free() {
@@ -370,15 +382,47 @@ void mainLoop() {
     textureSampler = glGetUniformLocation(chessboardShader, "diffuseColorSampler");
     texture = loadSOIL("assets/textures/wood.bmp");
 
-
-    camera.position = glm::vec3(0.0f, 5.0f, 9.0f);
+	int arrow_state[4] = {GLFW_RELEASE, GLFW_RELEASE, GLFW_RELEASE, GLFW_RELEASE};
+	int ARROW_KEYS[4] = {GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_RIGHT, GLFW_KEY_LEFT};
 
     do {
         // Clear the screen.
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		// Clear selections
+		for(int f=0; f < 8; f++)
+		for(int r=0; r < 8; r++)
+			selections[f][r] = 0;
+
+        // Events
+        glfwPollEvents();
+		for(int i=0; i < 4; i++)
+		{
+			switch(glfwGetKey(window, ARROW_KEYS[i]))
+			{
+				case GLFW_PRESS:
+					arrow_state[i] = GLFW_PRESS;
+					break;
+				case GLFW_RELEASE:
+					if(arrow_state[i] == GLFW_PRESS)
+					{
+						int delta = i % 2 ? -1 : 1;
+						if(i < 2) cursorRank += delta;
+						else	  cursorFile += delta;
+					}
+					arrow_state[i] = GLFW_RELEASE;
+					break;
+			}
+		}
+		cursorRank = std::max(std::min(cursorRank, 7), 0);
+		cursorFile = std::max(std::min(cursorFile, 7), 0);
+
+		selections[cursorRank][cursorFile] = 1;
 
         camera.update();
-        sceneLight.update();	
+        sceneLight.update();
+
+		
         // Draw
         depth_pass(sceneLight.viewMatrix, sceneLight.projectionMatrix);
         lighting_pass();
@@ -386,8 +430,6 @@ void mainLoop() {
         // Swap buffers
         glfwSwapBuffers(window);
 
-        // Events
-        glfwPollEvents();
     } // Check if the ESC key was pressed or the window was closed
     while (glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
            glfwWindowShouldClose(window) == 0);

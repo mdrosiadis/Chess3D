@@ -30,21 +30,20 @@ void Camera::update() {
     glfwGetWindowSize(window, &width, &height);
 
     // Task 5.2: update view matrix so it always looks at the origin
-    projectionMatrix = perspective(radians(FoV), 4.0f / 3.0f, 0.1f, 100.0f);
-
-    viewMatrix = lookAt(
-        position,
-        vec3(0, 0, 0),
-        vec3(0, 1, 0)
-    );
+    projectionMatrix = perspective(radians(FoV), ((float) width / height), 0.1f, 100.0f);
     
     vec3 direction(0.0f, 0.0f, 1.0f);
 
     // Right vector
     vec3 right(1.0f, 0.0f, 0.0f);
 
-    // Up vector
-    vec3 up = cross(right, direction);
+    glm::vec3 up(0.f, 1.0f, 0.f); 
+
+    viewMatrix = lookAt(
+        position,
+        lookTo,
+        up
+    );
 
     // Task 5.5: update camera position using the direction/right vectors
     // Move forward
@@ -90,4 +89,9 @@ void Camera::update() {
 
     // For the next frame, the "last time" will be "now"
     lastTime = currentTime;
+}
+
+glm::vec3 Camera::getLookDirection()
+{
+    return glm::normalize(lookTo - position);
 }

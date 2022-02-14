@@ -11,6 +11,7 @@ public:
     glm::mat4 projectionMatrix;
     // Initial position : on +Z
     glm::vec3 position;
+    glm::vec3 lookTo;
     // Initial horizontal angle : toward -Z
     float horizontalAngle;
     // Initial vertical angle : none
@@ -24,6 +25,7 @@ public:
     Camera() = default;
     Camera(GLFWwindow* window);
     void update();
+    glm::vec3 getLookDirection();
 };
 
 #endif

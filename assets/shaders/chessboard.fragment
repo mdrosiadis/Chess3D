@@ -12,8 +12,9 @@ uniform sampler2D shadowMapSampler;
 uniform sampler2D diffuseColorSampler;
 
 uniform mat4 V;
-
+uniform int selections[64];
 uniform vec3 colors[2]; // black, white colors
+
 
 
 out vec4 fragmentColor; 
@@ -133,4 +134,8 @@ void phong(float visibility) {
         Ia + 
         visibility * Id * light.power / distance_sq +   // Task 4.3 Use visibility
         visibility * Is * light.power / distance_sq);
+    
+    if(selections[square_n] != 0)
+        fragmentColor = mix(fragmentColor, vec4(1.0f, 0.0f, 1.0f, 0.6f), 0.7);
+    
 }
