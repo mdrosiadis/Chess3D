@@ -401,15 +401,15 @@ void mainLoop() {
 			switch(glfwGetKey(window, ARROW_KEYS[i]))
 			{
 				case GLFW_PRESS:
-					arrow_state[i] = GLFW_PRESS;
-					break;
-				case GLFW_RELEASE:
-					if(arrow_state[i] == GLFW_PRESS)
+					if(arrow_state[i] == GLFW_RELEASE)
 					{
 						int delta = i % 2 ? -1 : 1;
 						if(i < 2) cursorRank += delta;
 						else	  cursorFile += delta;
 					}
+					arrow_state[i] = GLFW_PRESS;
+					break;
+				case GLFW_RELEASE:
 					arrow_state[i] = GLFW_RELEASE;
 					break;
 			}
