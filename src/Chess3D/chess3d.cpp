@@ -48,6 +48,8 @@ struct Material {
 	float Ns;
 };
 
+enum SquareStatus{CLEAR=0, CURSOR=1, MOVE_TARGETED=2, SELECTED=3, CHECKED=4, CHECKMATED=5};
+
 const Material pieceMaterials[2]{
 	{
 		{ 0.25f, 0.20725f, 0.20725f, 0.922f },
@@ -64,6 +66,7 @@ const Material pieceMaterials[2]{
 };
 
 const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const std::string TESTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/5n2/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 Position pos(STARTING_POSITION_FEN);
 
@@ -71,7 +74,8 @@ static Light sceneLight;
 static Camera camera;
 static std::vector<Drawable> pieces;
 
-int cursorFile = 0, cursorRank = 0;
+Coord cursor(0, 0), selection = DEFAULT_INVALID_COORD;
+
 // Global variables
 GLFWwindow* window;
 GLuint chessboardShader, piecesShader, shadowShader, depthShader;
@@ -94,7 +98,7 @@ GLuint depthFrameBuffer, depthTexture;
 GLuint colorsLocation;
 GLuint selectionsLocation;
 
-int selections[8][8] = {0};
+int selections[8][8] = {CLEAR};
 
 // Global chessboard colors
 glm::vec3 colors[2] = { 
@@ -324,7 +328,6 @@ void createContext() {
                                {0.0f, 7.0f, 0.0f},
                                200.f);
 
-    /* selections[1][2] = 1; */
 }
 
 void free() {
@@ -408,12 +411,16 @@ void create_chessboard()
 }
 
 void mainLoop() {
-    
+   	
+	selection = DEFAULT_INVALID_COORD;
+
     textureSampler = glGetUniformLocation(chessboardShader, "diffuseColorSampler");
     texture = loadSOIL("assets/textures/wood.bmp");
 
 	int arrow_state[4] = {GLFW_RELEASE, GLFW_RELEASE, GLFW_RELEASE, GLFW_RELEASE};
 	int ARROW_KEYS[4] = {GLFW_KEY_UP, GLFW_KEY_DOWN, GLFW_KEY_RIGHT, GLFW_KEY_LEFT};
+	
+	int enter_state = GLFW_RELEASE;
 
     do {
         // Clear the screen.
@@ -422,7 +429,7 @@ void mainLoop() {
 		// Clear selections
 		for(int f=0; f < 8; f++)
 		for(int r=0; r < 8; r++)
-			selections[f][r] = 0;
+			selections[f][r] = SquareStatus::CLEAR;
 
         // Events
         glfwPollEvents();
@@ -434,8 +441,8 @@ void mainLoop() {
 					if(arrow_state[i] == GLFW_RELEASE)
 					{
 						int delta = i % 2 ? -1 : 1;
-						if(i < 2) cursorRank += delta;
-						else	  cursorFile += delta;
+						if(i < 2) cursor.rank += delta;
+						else	  cursor.file += delta;
 					}
 					arrow_state[i] = GLFW_PRESS;
 					break;
@@ -444,13 +451,62 @@ void mainLoop() {
 					break;
 			}
 		}
-		cursorRank = std::max(std::min(cursorRank, 7), 0);
-		cursorFile = std::max(std::min(cursorFile, 7), 0);
+		
+		
+		switch(glfwGetKey(window, GLFW_KEY_ENTER))
+		{
+			case GLFW_PRESS:
+				if(enter_state == GLFW_RELEASE)
+				{
 
-		selections[cursorRank][cursorFile] = 1;
+					bool cursorToSelection = true;
+					if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
+					{
+						Move enteredMove(selection, cursor, NO_PIECE);
+						if(pos.doesMoveExist(enteredMove))
+						{
+							pos.playMove(enteredMove, pos);
+							selection = DEFAULT_INVALID_COORD;
+							cursorToSelection = false;
+						}
+					}
+					
+					if(cursorToSelection && pos.getPieceAtCoord(cursor).color == pos.color_playing)
+					{
+						selection = cursor;
+					}
+					
+				}
+				enter_state = GLFW_PRESS;
+				break;
+			case GLFW_RELEASE:
+				enter_state = GLFW_RELEASE;
+				break;
+		}
 
+
+		cursor.rank = std::max(std::min(cursor.rank, 7), 0);
+		cursor.file = std::max(std::min(cursor.file, 7), 0);
+
+		if(pos.isInCheck(pos.color_playing))
+		{
+			selections[pos.kingPositions[pos.color_playing].rank][pos.kingPositions[pos.color_playing].file] = pos.metadata.state == CHECK ? SquareStatus::CHECKED : SquareStatus::CHECKMATED;
+		}
+
+		for(Move& move : pos.metadata.legalMoves)
+		{
+			 if(CoordEquals(move.from, CoordEquals(selection, DEFAULT_INVALID_COORD) ? cursor : selection))
+				selections[move.to.rank][move.to.file] = SquareStatus::MOVE_TARGETED;
+		}
+
+		selections[cursor.rank][cursor.file] = SquareStatus::CURSOR;
+		
+		if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
+			selections[selection.rank][selection.file] = SquareStatus::SELECTED;
+
+		// Update camera
         camera.update();
-        sceneLight.update();
+        /* sceneLight.update(); */
 
 		
         // Draw

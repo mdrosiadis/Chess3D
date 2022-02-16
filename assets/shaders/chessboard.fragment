@@ -15,7 +15,13 @@ uniform mat4 V;
 uniform int selections[64];
 uniform vec3 colors[2]; // black, white colors
 
-
+const vec4 SELECTION_COLORS[5] = vec4[5](
+    vec4(1.0f, 0.0f, 1.0f, 0.6f),                               // CURSOR
+    vec4( 27.f / 255.f,  58.f / 255.f, 196.f / 255.f, 0.6f),    // MOVE_TARGETED
+    vec4( 39.f / 255.f, 163.f / 255.f,   2.f / 255.f, 0.6f),    // SELECTED
+    vec4(179.f / 255.f,  65.f / 255.f,   0.f / 255.f, 0.6f)     // CHECKED
+    vec4(181.f / 255.f,  10.f / 255.f,   4.f / 255.f, 0.6f),    // CHECKMATED
+);
 
 out vec4 fragmentColor; 
 // Phong 
@@ -136,6 +142,6 @@ void phong(float visibility) {
         visibility * Is * light.power / distance_sq);
     
     if(selections[square_n] != 0)
-        fragmentColor = mix(fragmentColor, vec4(1.0f, 0.0f, 1.0f, 0.6f), 0.7);
+        fragmentColor = mix(fragmentColor, SELECTION_COLORS[selections[square_n]-1], 0.7);
     
 }

@@ -5,7 +5,7 @@
 
 const Coord DEFAULT_INVALID_COORD = {INVALID_FILE, INVALID_RANK};
 
-Coord::Coord(int f, int r) : file(static_cast<CoordFile>(f)), rank(static_cast<CoordRank>(r)) {}; 
+Coord::Coord(int f, int r) : file(f), rank(r) {}; 
 
 char Coord::FileChar() const
 {
