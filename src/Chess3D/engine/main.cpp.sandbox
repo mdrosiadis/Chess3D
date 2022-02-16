@@ -1,0 +1,37 @@
+#include "position.hpp"
+#include "move.hpp"
+
+#include <iostream>
+#include <string>
+
+
+int main()
+{
+    Position pos("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    do
+    {   
+        std::string input;
+        pos.DebugPrint();
+        
+        std::cout << "Enter move: ";
+        std::cin >> input;
+
+        Move enteredMove(input);
+        pos.createMoveStrings();
+
+
+        if(pos.doesMoveExist(enteredMove))
+        {
+            std::cout << "Valid move! ";
+            enteredMove.DebugPrintMove();
+
+            pos.playMove(enteredMove, pos);
+        }
+        else
+        {
+            std::cout << "Bad move try again!\n";
+        }
+    }while(pos.isPlayable());
+
+    return 0;
+}
