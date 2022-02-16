@@ -15,6 +15,9 @@ static const PieceData PIECE_DATA[] =
     {'.', 0, {0, 0, 0, 0, 0}}
 };
 
+/* static const Coord DEFAULT_INVALID_COORD = {-1, -1}; */
+#define DEFAULT_INVALID_COORD Coord(INVALID_FILE, INVALID_RANK)
+
 static const int DIAGONAL_DIRECTIONS[][2] = {{-1, -1}, {1, 1}, {-1, 1}, {1, -1}};
 static const int CROSS_DIRECTIONS[][2]    = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
 

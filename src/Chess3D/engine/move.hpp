@@ -25,7 +25,7 @@ struct Move
 
     Move();
     Move(const std::string& uci);
-    Move(Coord from, Coord to, PieceType promotion);
+    Move(Coord from, Coord to, PieceType promotion=NO_PIECE);
 
     void DebugPrintMove() const;
     void createMoveString(Position& pos);

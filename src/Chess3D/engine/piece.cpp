@@ -47,8 +47,8 @@ std::vector<Move> DirectionalMove(const Position& pos, Coord from, PieceColor co
             Piece pieceAtCurrent = pos.getPieceAtCoord(current); 
 
             /* Piece hit! If enemy, it can be a capture unless its the enemy king */ 
-            Move newMove;
-            newMove.from = from; newMove.to = current;
+            Move newMove(from, current);
+
             if(pieceAtCurrent.type != NO_PIECE) 
             { 
 
@@ -97,8 +97,8 @@ std::vector<Move> KnightMove(const Position& pos, Coord from, PieceColor color)
 
         if(pieceAtCurrent.type == NO_PIECE || pieceAtCurrent.color != color)
         {
-            Move newMove;
-            newMove.from = from; newMove.to = current;
+            Move newMove(from, current);
+
             if(pieceAtCurrent.type != NO_PIECE) newMove.catpureTarget = current;
             moves.push_back(newMove);
         }
@@ -125,8 +125,7 @@ std::vector<Move> PawnMove(const Position& pos, Coord from, PieceColor color)
 
         if(pieceAtCurrent.type != NO_PIECE) break;
 
-        Move newMove;
-        newMove.from = from; newMove.to = current;
+        Move newMove(from, current);
 
         if(current.rank == PAWN_PROMOTION_RANK[color])
         {
@@ -155,8 +154,7 @@ std::vector<Move> PawnMove(const Position& pos, Coord from, PieceColor color)
 
         if(pieceAtCurrent.type != NO_PIECE && pieceAtCurrent.color != color)
         {
-            Move newMove;
-            newMove.from = from; newMove.to = current;
+            Move newMove(from, current);
             newMove.catpureTarget = current;
 
             if(current.rank == PAWN_PROMOTION_RANK[color])
@@ -176,8 +174,7 @@ std::vector<Move> PawnMove(const Position& pos, Coord from, PieceColor color)
         else if(CoordEquals(current, pos.en_passant) && pieceAtCurrent.type == NO_PIECE && color == pos.color_playing) //en passant
         {
 
-            Move newMove;
-            newMove.from = from; newMove.to = current;
+            Move newMove(from , current);
             newMove.catpureTarget = current;
             moves.push_back(newMove);
         }
@@ -191,13 +188,12 @@ std::vector<Move> KingMove(const Position& pos, Coord from, PieceColor color)
 {
     std::vector<Move> moves;
     
-    Coord current;
     for(int file=-1; file <= 1; file++)
         for(int rank=-1; rank <= 1; rank++)
         {
             if(file == 0 && rank == 0) continue;
 
-            current = (Coord){from.file + file, from.rank + rank};
+            Coord current(from.file + file, from.rank + rank);
 
             if(!validCoord(current)) continue;
 
@@ -205,8 +201,7 @@ std::vector<Move> KingMove(const Position& pos, Coord from, PieceColor color)
 
             if(pieceAtCurrent.type == NO_PIECE || pieceAtCurrent.color != color)
             {
-                Move newMove;
-                newMove.from = from; newMove.to = current;
+                Move newMove(from, current);
 
                 if(pieceAtCurrent.type != NO_PIECE) newMove.catpureTarget = current;
 

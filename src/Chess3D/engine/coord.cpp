@@ -2,8 +2,7 @@
 #include <cstdio>
 
 #include "coord.hpp"
-
-const Coord DEFAULT_INVALID_COORD = {INVALID_FILE, INVALID_RANK};
+#include "lookups.hpp"
 
 Coord::Coord(int f, int r) : file(f), rank(r) {}; 
 

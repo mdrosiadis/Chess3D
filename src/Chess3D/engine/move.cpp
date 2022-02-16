@@ -25,8 +25,8 @@ Move::Move(const std::string& uci) : Move()
 }
 
 
-Move::Move(Coord from, Coord to, PieceType promotion=NO_PIECE) : 
-    from(from), to(to), algebraicNotation(""), castlingType(NO_CASTLE), promotionType(promotion)
+Move::Move(Coord from, Coord to, PieceType promotion) : 
+    from(from), to(to), algebraicNotation(""), catpureTarget(DEFAULT_INVALID_COORD), castlingType(NO_CASTLE), promotionType(promotion)
 {
 }
 

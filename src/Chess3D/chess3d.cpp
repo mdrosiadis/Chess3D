@@ -22,6 +22,7 @@
 #include "engine/position.hpp"
 #include "engine/coord.hpp"
 #include "engine/move.hpp"
+#include "engine/lookups.hpp"
 
 using namespace std;
 
@@ -74,7 +75,7 @@ static Light sceneLight;
 static Camera camera;
 static std::vector<Drawable> pieces;
 
-Coord cursor(0, 0), selection = DEFAULT_INVALID_COORD;
+Coord cursor(0, 0), selection(-1, -1);
 
 // Global variables
 GLFWwindow* window;
@@ -412,8 +413,6 @@ void create_chessboard()
 
 void mainLoop() {
    	
-	selection = DEFAULT_INVALID_COORD;
-
     textureSampler = glGetUniformLocation(chessboardShader, "diffuseColorSampler");
     texture = loadSOIL("assets/textures/wood.bmp");
 
@@ -462,10 +461,13 @@ void mainLoop() {
 					bool cursorToSelection = true;
 					if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
 					{
-						Move enteredMove(selection, cursor, NO_PIECE);
+
+						Move enteredMove(selection, cursor);
+
 						if(pos.doesMoveExist(enteredMove))
 						{
 							pos.playMove(enteredMove, pos);
+
 							selection = DEFAULT_INVALID_COORD;
 							cursorToSelection = false;
 						}

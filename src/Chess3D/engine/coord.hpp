@@ -21,9 +21,6 @@ struct Coord
     void DebugPrintCoordFull() const;
 };
 
-extern const Coord DEFAULT_INVALID_COORD;
-
-
 #define IS_DEFAULT_INVALID_COORD(coord) (CoordEquals(coord, DEFAULT_INVALID_COORD))
 
 bool validCoord(Coord coord);

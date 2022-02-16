@@ -47,7 +47,6 @@ Position::Position(const std::string& fen) : FEN(fen)
 
     valid_metadata = false;
     kingPositions[0] = DEFAULT_INVALID_COORD; kingPositions[1] = DEFAULT_INVALID_COORD;
-
     en_passant = DEFAULT_INVALID_COORD;
 
     // Position data
@@ -408,7 +407,9 @@ void Position::playMove(const Move& move, Position& newPosition)
         if(getPieceAtCoord(move.to).type != NO_PIECE) newPosition.halfmoveClock = 0;
 
         // order is important here
-        newPosition.setPieceAtCoord(move.catpureTarget, NO_PIECE_LITERAL);
+        if(!CoordEquals(move.catpureTarget, DEFAULT_INVALID_COORD))
+                newPosition.setPieceAtCoord(move.catpureTarget, NO_PIECE_LITERAL);
+
         newPosition.setPieceAtCoord(move.to, pieceMoving);
         newPosition.setPieceAtCoord(move.from, NO_PIECE_LITERAL);
 
@@ -547,5 +548,6 @@ void Position::printLegalMoves()
     {
         std::cout << i++ << " ";
         move.DebugPrintMove();
+        move.catpureTarget.DebugPrintCoordFull();
     } 
 }
