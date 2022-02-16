@@ -488,7 +488,7 @@ std::vector<Move> Position::createLegalMoves()
         current.file--;
         bool valid = true;
 
-        for(; current.file > CASTLING_ROOK_START_COORD[color_playing][LONG_CASTLE].file; current.file++)
+        for(; current.file > CASTLING_ROOK_START_COORD[color_playing][LONG_CASTLE].file; current.file--)
         {
             if(getPieceAtCoord(current).type != NO_PIECE)
             {

@@ -175,7 +175,7 @@ std::vector<Move> PawnMove(const Position& pos, Coord from, PieceColor color)
         {
 
             Move newMove(from , current);
-            newMove.catpureTarget = current;
+            newMove.catpureTarget = Coord(current.file, current.rank - PAWN_MOVING_DIRECTION[color]);
             moves.push_back(newMove);
         }
     }
