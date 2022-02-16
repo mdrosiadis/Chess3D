@@ -19,6 +19,10 @@
 #include "common/texture.h"
 #include "common/light.h"
 
+#include "engine/position.hpp"
+#include "engine/coord.hpp"
+#include "engine/move.hpp"
+
 using namespace std;
 
 // Function prototypes
@@ -44,16 +48,28 @@ struct Material {
 	float Ns;
 };
 
-const Material polishedSilver{
-	{  0.0215,    0.1475,   0.0215, 0.55},
-	{ 0.07568,   0.61424,  0.07568, 0.55},
-	{   0.633,  0.727811,    0.633, 0.55},
-	76.8f
+const Material pieceMaterials[2]{
+	{
+		{ 0.25f, 0.20725f, 0.20725f, 0.922f },
+		{1.0f, 0.829f, 0.829f, 0.922f },
+		{0.296648f, 0.296648f, 0.296648f, 0.922f },
+		11.264f
+	},
+	{
+		{0.05375f, 0.05f, 0.06625f, 0.82f },
+		{0.018275f, 0.017f, 0.022525f, 0.082f},
+		{0.0332741f, 0.0328634f, 0.0346435f, 0.082f },
+		5.4f
+	}
 };
+
+const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+Position pos(STARTING_POSITION_FEN);
 
 static Light sceneLight;
 static Camera camera;
-static Drawable *rook;
+static std::vector<Drawable> pieces;
 
 int cursorFile = 0, cursorRank = 0;
 // Global variables
@@ -149,29 +165,46 @@ void renderScene(bool renderDepth=false)
     /* double tn = glfwGetTime(); */
     /* float offset = (tn / 3.0) - ((int) (tn / 3.0)); */
 
-    modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + cursorFile, 0.0f, 3.5f - cursorRank});
 
-    if(!renderDepth)
-    {
-        glUseProgram(shadowShader);
+	for(int file=0; file < BOARD_SIZE; file++)
+	for(int rank=0; rank < BOARD_SIZE; rank++)
+	{
+		Piece currentPiece = pos.getPieceAtCoord(Coord(file, rank));
+		if(currentPiece.type == NO_PIECE) continue;
+		
+		modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + file, 0.0f, 3.5f - rank});
 
-        glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
-        glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
-        glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
+		if(!renderDepth)
+		{
+			glUseProgram(shadowShader);
 
-        uploadLightToShader(shadowShader, sceneLight);
-        uploadMaterial(polishedSilver);
-    }
-    else
-    {
-        glUniformMatrix4fv(shadowModelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
-    }
-   
-    rook->bind();
-    rook->draw();
+			glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+			glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+			glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
+
+			uploadLightToShader(shadowShader, sceneLight);
+			uploadMaterial(pieceMaterials[currentPiece.color]);
+		}
+		else
+		{
+			glUniformMatrix4fv(shadowModelLocation, 1, GL_FALSE, &modelMatrix[0][0]);
+		}
+	   
+		pieces[currentPiece.type].bind();
+		pieces[currentPiece.type].draw();
+	}
 }
 
 void createContext() {
+	// Load 3d objects
+	
+	pieces.emplace_back("assets/models/pawn.obj");
+	pieces.emplace_back("assets/models/knight.obj");
+	pieces.emplace_back("assets/models/bishop.obj");
+	pieces.emplace_back("assets/models/rook.obj");
+	pieces.emplace_back("assets/models/queen.obj");
+	pieces.emplace_back("assets/models/king.obj");
+	
     // Create and compile our GLSL program from the shaders
     chessboardShader = loadShaders("assets/shaders/chessboard.vertex", "assets/shaders/chessboard.fragment");
     /* piecesShader = loadShaders("assets/shaders/pieces.vertex", "assets/shaders/pieces.fragment"); */
@@ -285,8 +318,6 @@ void createContext() {
 	camera.position = glm::vec3(0.f, 5.f, 9.f);
 	camera.lookTo = glm::vec3(0.f, 0.f, 0.f);
 
-    rook = new Drawable("assets/models/rook.obj");
-
     sceneLight = Light(window, {1.0f, 1.0f, 1.0f, 1.0f},
                                {1.0f, 1.0f, 1.0f, 1.0f},
                                {1.0f, 1.0f, 1.0f, 1.0f},
@@ -302,7 +333,6 @@ void free() {
     /* glDeleteProgram(piecesShader); */
     glDeleteProgram(shadowShader);
     glDeleteProgram(depthShader);
-    delete rook;
 
     // Close OpenGL window and terminate GLFW
     glfwTerminate();
