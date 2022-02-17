@@ -290,7 +290,8 @@ void renderScene(bool renderDepth=false)
 
 void createContext() {
 	// Load 3d objects
-	
+	pieces.reserve(8);
+
 	pieces.emplace_back("assets/models/pawn.obj");
 	pieces.emplace_back("assets/models/knight.obj");
 	pieces.emplace_back("assets/models/bishop.obj");
@@ -649,7 +650,7 @@ void mainLoop() {
 
 		// Update camera
         camera.update();
-        /* sceneLight.update(); */
+        sceneLight.update();
 
 		
         // Draw
