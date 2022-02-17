@@ -1,6 +1,7 @@
 // Include C++ headers
 #include <iostream>
 #include <string>
+#include <algorithm>
 
 // Include GLEW (always include first)
 #include <GL/glew.h>
@@ -10,6 +11,7 @@
 
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/compatibility.hpp>
 
 // Shader loading utilities and other
 #include "common/shader.h"
@@ -42,6 +44,8 @@ void depth_pass(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
 #define SHADOW_WIDTH 4096
 #define SHADOW_HEIGHT 4096
 
+#define CHESSBOARD_ELEMENTS (2*3*8*8 + 8*3)
+
 struct Material {
     glm::vec4 Ka;
     glm::vec4 Kd;
@@ -66,6 +70,9 @@ const Material pieceMaterials[2]{
 	}
 };
 
+const float ANIMATION_DURATION = 1.f;
+float animation_start_time;
+
 const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const std::string TESTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/5n2/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -75,6 +82,9 @@ static Light sceneLight;
 static Camera camera;
 static std::vector<Drawable> pieces;
 
+enum AppState{SIMPLE_RENDER, MOVE_ANIMATION, CAMERA_ANIMATION, PROMOTION_SELECT} state;
+
+Move enteredMove;
 Coord cursor(0, 0), selection(-1, -1);
 
 // Global variables
@@ -165,19 +175,97 @@ void renderScene(bool renderDepth=false)
     }
 
     glBindVertexArray(chessboardVAO);
-    glDrawElements(GL_TRIANGLES, 64*6, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, CHESSBOARD_ELEMENTS, GL_UNSIGNED_INT, 0);
 
     /* double tn = glfwGetTime(); */
     /* float offset = (tn / 3.0) - ((int) (tn / 3.0)); */
+	
+	float animation_time = glfwGetTime() - animation_start_time;
 
-
-	for(int file=0; file < BOARD_SIZE; file++)
-	for(int rank=0; rank < BOARD_SIZE; rank++)
+	if(state == AppState::MOVE_ANIMATION && animation_time >= ANIMATION_DURATION) 
 	{
-		Piece currentPiece = pos.getPieceAtCoord(Coord(file, rank));
+		state = AppState::SIMPLE_RENDER;
+		pos.playMove(enteredMove, pos);
+	}
+	
+	float animation_progress = animation_time / ANIMATION_DURATION;
+
+	Coord c;
+	for(c.file=0; c.file < BOARD_SIZE; c.file++)
+	for(c.rank=0; c.rank < BOARD_SIZE; c.rank++)
+	{
+		Piece currentPiece = pos.getPieceAtCoord(c);
 		if(currentPiece.type == NO_PIECE) continue;
 		
-		modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + file, 0.0f, 3.5f - rank});
+		modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + c.file, 0.0f, 3.5f - c.rank});
+		
+		if(state == AppState::MOVE_ANIMATION)
+		{
+			if(CoordEquals(c, enteredMove.from)) 
+			{
+				if(enteredMove.promotionType != NO_PIECE)
+				{
+					if(animation_progress <= 0.5f)
+					{
+						modelMatrix = glm::translate(glm::mat4(1.0f),
+													 glm::vec3(-3.5 + c.file,
+															   -2.0f * animation_progress / 0.5f,
+																3.5 - c.rank));
+					}
+					else
+					{
+						Coord nc = enteredMove.to;
+						currentPiece.type = enteredMove.promotionType;
+
+						modelMatrix = glm::translate(glm::mat4(1.0f),
+													 glm::vec3(-3.5 + nc.file,
+															   -2.0f * (1.f-animation_progress) / 0.5f,
+																3.5 - nc.rank));
+					}
+				}
+				else
+				{
+					float y = 0.0f;
+					if(currentPiece.type == PieceType::KNIGHT) y = 3.0f * std::sin(animation_progress * glm::pi<float>()); 
+					modelMatrix = glm::translate(glm::mat4(1.0f), 
+												 glm::lerp(glm::vec3( -3.5f + enteredMove.from.file, y, 3.5f - enteredMove.from.rank),
+														   glm::vec3( -3.5f + enteredMove.to.file,   y, 3.5f - enteredMove.to.rank  ),	
+														   animation_progress)
+												);
+				}
+			}
+			else if(CoordEquals(c, enteredMove.catpureTarget))
+			{
+				/* dont render taken piece */
+				if(animation_progress >= 0.5f) continue;
+
+				modelMatrix = glm::translate(glm::mat4(1.0f),
+										     glm::vec3(-3.5 + c.file,
+												       -4.0f * animation_progress,
+												 	    3.5 - c.rank));
+			}
+			else if(enteredMove.castlingType != NO_CASTLE && CoordEquals(c, CASTLING_ROOK_START_COORD[pos.color_playing][enteredMove.castlingType]))
+			{
+				if(animation_progress <= 0.2)
+				{
+					modelMatrix = glm::translate(glm::mat4(1.0f),
+												 glm::vec3(-3.5 + c.file,
+														   -2.0f * animation_progress / 0.2,
+															3.5 - c.rank));
+				}
+				else if(animation_progress >= 0.8)
+				{
+					Coord nc = CASTLING_ROOK_TARGET_COORD[pos.color_playing][enteredMove.castlingType];
+
+					modelMatrix = glm::translate(glm::mat4(1.0f),
+												 glm::vec3(-3.5 + nc.file,
+														   -2.0f * (1.0f - animation_progress) / 0.2,
+															3.5 - nc.rank));
+				}
+				else continue; /* dont render mid-animation */
+			}
+
+		}
 
 		if(!renderDepth)
 		{
@@ -353,8 +441,8 @@ void create_chessboard()
     };
     
     
-    BoardPoint chessboard_points[9*9];
-    GLuint chessboard_elements[2*3*8*8]; 
+    BoardPoint chessboard_points[9*9 + 4];
+    GLuint chessboard_elements[CHESSBOARD_ELEMENTS]; 
 
     // create vertices
     int point_count = 0;
@@ -371,6 +459,7 @@ void create_chessboard()
 
         point_count++;
     }
+	
 
     // create elements
     int element_count = 0;
@@ -387,6 +476,49 @@ void create_chessboard()
         chessboard_elements[element_count++] = (GLuint) (y+1)*9+x;
         chessboard_elements[element_count++] = (GLuint) y*9+x;
     }
+
+	// chessboard base
+	const float CHESSBOARD_BASE_HEIGHT = 1.0f;
+	const float CORNER_OFFSET = 4.f + CHESSBOARD_BASE_HEIGHT;
+	chessboard_points[point_count  ] = {{ -CORNER_OFFSET, -CHESSBOARD_BASE_HEIGHT,  CORNER_OFFSET}, -1, {0.f, 0.f}};
+	chessboard_points[point_count+1] = {{  CORNER_OFFSET, -CHESSBOARD_BASE_HEIGHT,  CORNER_OFFSET}, -1, {0.f, 1.f}};
+	chessboard_points[point_count+2] = {{  CORNER_OFFSET, -CHESSBOARD_BASE_HEIGHT, -CORNER_OFFSET}, -1, {1.f, 1.f}};
+	chessboard_points[point_count+3] = {{ -CORNER_OFFSET, -CHESSBOARD_BASE_HEIGHT, -CORNER_OFFSET}, -1, {1.f, 0.f}};
+
+	// chessboard base elements
+	chessboard_elements[element_count++] = (GLuint) 0*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) 0;
+	chessboard_elements[element_count++] = (GLuint) point_count;
+	
+	chessboard_elements[element_count++] = (GLuint) 0*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) point_count;
+	chessboard_elements[element_count++] = (GLuint) point_count + 1;
+
+	chessboard_elements[element_count++] = (GLuint) 8*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) 0*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) point_count + 1;
+
+	chessboard_elements[element_count++] = (GLuint) 8*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) point_count + 1;
+	chessboard_elements[element_count++] = (GLuint) point_count + 2;
+
+	chessboard_elements[element_count++] = (GLuint) 8*9;
+	chessboard_elements[element_count++] = (GLuint) 8*9+7+1;
+	chessboard_elements[element_count++] = (GLuint) point_count + 2;
+
+	chessboard_elements[element_count++] = (GLuint) 8*9;
+	chessboard_elements[element_count++] = (GLuint) point_count + 2;
+	chessboard_elements[element_count++] = (GLuint) point_count + 3;
+
+	chessboard_elements[element_count++] = (GLuint) 0;
+	chessboard_elements[element_count++] = (GLuint) 8*9;
+	chessboard_elements[element_count++] = (GLuint) point_count + 3;
+
+	chessboard_elements[element_count++] = (GLuint) 0;
+	chessboard_elements[element_count++] = (GLuint) point_count + 3;
+	chessboard_elements[element_count++] = (GLuint) point_count + 0;
+
+	point_count += 4;
 
     // Send data to gpu 
     glGenVertexArrays(1, &chessboardVAO);
@@ -421,6 +553,7 @@ void mainLoop() {
 	
 	int enter_state = GLFW_RELEASE;
 
+	state = AppState::SIMPLE_RENDER;
     do {
         // Clear the screen.
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -462,11 +595,19 @@ void mainLoop() {
 					if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
 					{
 
-						Move enteredMove(selection, cursor);
+						enteredMove = Move(selection, cursor);
+						
+						if(pos.getPieceAtCoord(enteredMove.from).type == PAWN && 
+						   enteredMove.to.rank == PAWN_PROMOTION_RANK[pos.color_playing])
+						{	
+							enteredMove.promotionType = QUEEN;
+						}
 
 						if(pos.doesMoveExist(enteredMove))
 						{
-							pos.playMove(enteredMove, pos);
+							state = AppState::MOVE_ANIMATION;
+							animation_start_time = glfwGetTime();
+							/* pos.playMove(enteredMove, pos); */
 
 							selection = DEFAULT_INVALID_COORD;
 							cursorToSelection = false;

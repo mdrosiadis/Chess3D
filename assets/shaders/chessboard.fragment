@@ -108,7 +108,7 @@ float ShadowCalculation(vec4 vertexPositionLightspace){
 
 void phong(float visibility) {
 
-	vec3 c = colors[((square_n >> 3) ^ square_n) & 1];
+	vec3 c = square_n == -1 ? 0.2 * colors[0] : colors[((square_n >> 3) ^ square_n) & 1];
 
 	vec4 _Ks = vec4(0.1f, 0.1f, 0.1f, 1.0f); //vec4(texture(diffuseColorSampler, vertex_UV).rgb, 1.0);
 	vec4 _Kd = (vec4(c, 0.8f) * texture(diffuseColorSampler, vertex_UV));
@@ -141,7 +141,7 @@ void phong(float visibility) {
         visibility * Id * light.power / distance_sq +   // Task 4.3 Use visibility
         visibility * Is * light.power / distance_sq);
     
-    if(selections[square_n] != 0)
+    if(square_n != -1 && selections[square_n] != 0)
         fragmentColor = mix(fragmentColor, SELECTION_COLORS[selections[square_n]-1], 0.7);
     
 }
