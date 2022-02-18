@@ -1,0 +1,43 @@
+#version 330 core
+
+layout (location = 0) in vec3 vertex; 
+
+uniform mat4 V;
+uniform mat4 P;
+
+uniform vec3 smokeCenter;
+uniform vec4 smokeColor;
+uniform int startLevel;
+uniform vec2 offsets[360];
+
+uniform float randSeed;
+
+out vec2 tex;
+out vec4 color;
+
+const float dy = 0.02f;
+
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+void main()
+{
+	int circle_i = gl_InstanceID % 360;
+	int smokeLevel = startLevel + (gl_InstanceID / 360);
+	float theta = radians(float(circle_i));
+	
+	vec3 center = vec3(smokeCenter.x + offsets[circle_i].x, 
+					   smokeCenter.y,
+					   smokeCenter.z + offsets[circle_i].y);
+
+	vec4 vp = vec4(vertex.x * cos(theta) - vertex.z * sin(theta) + center.x + 0.2*rand(vec2(randSeed, float(gl_InstanceID))),
+			       vertex.y + smokeLevel * dy + center.y,
+				   vertex.x * sin(theta) + vertex.z * cos(theta) + center.z + 0.2*rand(vec2(float(gl_InstanceID), -randSeed)),
+				   1.f);
+
+	tex = vec2(vertex.x < 0 ? 0.f : 1.f, vertex.y < 0 ? 0.f : 1.f);
+
+
+	gl_Position = P * V * vp;
+	color = vec4(smokeColor.xyz, smokeColor.w/* - smokeLevel * dy * 0.1*/);	
+}

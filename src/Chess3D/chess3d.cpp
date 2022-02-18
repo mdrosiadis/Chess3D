@@ -71,6 +71,7 @@ const Material pieceMaterials[2]{
 };
 
 const float ANIMATION_DURATION = 1.f;
+const int MAX_SMOKE_LEVELS = 50;
 float animation_start_time;
 
 const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -109,8 +110,17 @@ GLuint depthFrameBuffer, depthTexture;
 GLuint colorsLocation;
 GLuint selectionsLocation;
 
+GLuint smokeShader;
+GLuint smokeV, smokeP, smokeColor, smokeCenter, smokeStartLevel, smokeOffsets, smokeRandSeed;
+GLuint smokeVAO, smokeVBO, smokeEBO;
+
 int selections[8][8] = {CLEAR};
 
+const float PARTICLE_SIZE = 0.03f;
+const float SMOKE_RADIUS = 0.45f;
+const int N_STEPS = 360;
+
+glm::vec2 smokeOffsetsData[N_STEPS];
 // Global chessboard colors
 glm::vec3 colors[2] = { 
     { 51.f / 255.f,  36.f / 255.f,  13.f / 255.f},        
@@ -118,6 +128,37 @@ glm::vec3 colors[2] = {
 };
 
 void create_chessboard();
+
+void create_smoke_data()
+{
+	glm::vec3 particle_verticies[4] = {
+		{-PARTICLE_SIZE, -PARTICLE_SIZE, 0.f},
+		{ PARTICLE_SIZE, -PARTICLE_SIZE, 0.f},
+		{ PARTICLE_SIZE,  PARTICLE_SIZE, 0.f},
+		{-PARTICLE_SIZE,  PARTICLE_SIZE, 0.f}
+	};
+	GLuint elements[2][3] = {{0, 1, 2}, {2, 3, 0}};
+	glGenVertexArrays(1, &smokeVAO);
+	glBindVertexArray(smokeVAO);
+	
+	glGenBuffers(1, &smokeVBO);
+	glBindBuffer(GL_ARRAY_BUFFER, smokeVBO);
+
+    glBufferData(GL_ARRAY_BUFFER, sizeof(particle_verticies), particle_verticies, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(GLfloat), NULL);
+    glEnableVertexAttribArray(0);
+
+	glGenBuffers(1, &smokeEBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, smokeEBO);	
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements, GL_STATIC_DRAW);
+
+	float theta = glm::radians(-90.f);
+	for(int i=0; i < N_STEPS; ++i)
+	{
+		smokeOffsetsData[i] = SMOKE_RADIUS * glm::vec2(std::cos(theta),  std::sin(theta));
+		theta += glm::radians( 360.f / N_STEPS);
+	}
+}
 
 void uploadLightToShader(GLuint shader, const Light& light) {
 	glUniform4f(glGetUniformLocation(shader, "light.La"), light.La.r, light.La.g, light.La.b, light.La.a);
@@ -286,6 +327,34 @@ void renderScene(bool renderDepth=false)
 		pieces[currentPiece.type].bind();
 		pieces[currentPiece.type].draw();
 	}
+
+	if(!renderDepth && state == AppState::MOVE_ANIMATION && enteredMove.promotionType != NO_PIECE)
+	{
+		int smokeLevel = 0;
+		int smokeRenderLevels;
+		if(animation_progress <= 0.5)
+			smokeRenderLevels = MAX_SMOKE_LEVELS * (animation_progress / 0.5f);
+		else
+			smokeRenderLevels = MAX_SMOKE_LEVELS * ((1 - animation_progress) / 0.5f);
+
+		glm::vec4 smokeColorData(glm::vec3(0.3f), 0.5f);
+		glm::vec3 smokeCenterData(-3.5f + enteredMove.to.file, 0, 3.5f - enteredMove.to.rank);
+
+		glUseProgram(smokeShader);
+		glUniform1i(smokeStartLevel, smokeLevel);
+		glUniform1f(smokeRandSeed, glfwGetTime());
+		glUniform3fv(smokeCenter, 1, &smokeCenterData[0]);
+		glUniform2fv(smokeOffsets, N_STEPS, &smokeOffsetsData[0][0]);
+		glUniformMatrix4fv(smokeV, 1, GL_FALSE, &camera.viewMatrix[0][0]);
+		glUniformMatrix4fv(smokeP, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
+		glUniform4fv(smokeColor, 1, &smokeColorData[0]);
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBindVertexArray(smokeVAO);
+		glDrawElementsInstanced(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL, smokeRenderLevels * N_STEPS);
+		glDisable(GL_BLEND);
+	}
 }
 
 void createContext() {
@@ -305,7 +374,7 @@ void createContext() {
     
     shadowShader = loadShaders("assets/shaders/shadowmapping.vetrex", "assets/shaders/shadowmapping.fragment");
     depthShader = loadShaders("assets/shaders/depth.vertex", "assets/shaders/depth.fragment");
-
+	smokeShader = loadShaders("assets/shaders/smoke.vertex", "assets/shaders/smoke.fragment");
     
     projectionMatrixLocation = glGetUniformLocation(chessboardShader, "P");
     viewMatrixLocation = glGetUniformLocation(chessboardShader, "V");
@@ -318,6 +387,14 @@ void createContext() {
     // pieceColor = glGetUniformLocation(piecesShader, "color");
 
     colorsLocation = glGetUniformLocation(chessboardShader, "colors");
+
+	smokeV = glGetUniformLocation(smokeShader, "V");
+	smokeP = glGetUniformLocation(smokeShader, "P");
+	smokeCenter = glGetUniformLocation(smokeShader, "smokeCenter");
+	smokeColor = glGetUniformLocation(smokeShader, "smokeColor");
+	smokeStartLevel = glGetUniformLocation(smokeShader, "startLevel");
+	smokeOffsets = glGetUniformLocation(smokeShader, "offsets");
+	smokeRandSeed = glGetUniformLocation(smokeShader, "randSeed");
 
     // Draw wire frame triangles or fill: GL_LINE, or GL_FILL
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -407,6 +484,7 @@ void createContext() {
 	shadowModelLocation = glGetUniformLocation(depthShader, "M");
 
     create_chessboard();
+	create_smoke_data();
 
     camera = Camera(window);
 	camera.position = glm::vec3(0.f, 5.f, 9.f);
@@ -426,6 +504,7 @@ void free() {
     /* glDeleteProgram(piecesShader); */
     glDeleteProgram(shadowShader);
     glDeleteProgram(depthShader);
+    glDeleteProgram(smokeShader);
 
     // Close OpenGL window and terminate GLFW
     glfwTerminate();
@@ -757,6 +836,7 @@ void depth_pass(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix) 
 
 	// ---- rendering the scene ---- //
     renderScene(true);
+	
 	// binding the default framebuffer again
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 

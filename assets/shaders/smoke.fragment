@@ -1,0 +1,15 @@
+#version 330 core
+
+in vec4 color;
+in vec2 tex;
+
+out vec4 fc;
+
+
+void main()
+{
+	fc = color;
+	fc.w -= 0.3 * length(tex);
+
+//	fc = vec4(1.f, 0.f, 0.f, 1.f);
+}
