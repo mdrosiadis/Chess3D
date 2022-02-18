@@ -71,7 +71,10 @@ const Material pieceMaterials[2]{
 };
 
 const float ANIMATION_DURATION = 1.f;
+const float CAMERA_MOVE_DURATION = 2.f;
 const int MAX_SMOKE_LEVELS = 80;
+
+const bool ROTATE_CAMERA = true;
 float animation_start_time;
 
 const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -225,7 +228,8 @@ void renderScene(bool renderDepth=false)
 
 	if(state == AppState::MOVE_ANIMATION && animation_time >= ANIMATION_DURATION) 
 	{
-		state = AppState::SIMPLE_RENDER;
+		state = ROTATE_CAMERA ? AppState::CAMERA_ANIMATION : AppState::SIMPLE_RENDER;
+		animation_start_time = glfwGetTime();
 		pos.playMove(enteredMove, pos);
 	}
 	
@@ -333,7 +337,7 @@ void renderScene(bool renderDepth=false)
 		int smokeLevel = 0;
 		int smokeRenderLevels;
 		if(animation_progress <= 0.4)
-			smokeRenderLevels = MAX_SMOKE_LEVELS * (animation_progress / 0.3f);
+			smokeRenderLevels = MAX_SMOKE_LEVELS * (animation_progress / 0.4f);
 		else if(animation_progress >= 0.9f)
 			smokeRenderLevels = MAX_SMOKE_LEVELS * ((1 - animation_progress) / 0.1f);
 		else
@@ -645,68 +649,89 @@ void mainLoop() {
 		for(int r=0; r < 8; r++)
 			selections[f][r] = SquareStatus::CLEAR;
 
-        // Events
-        glfwPollEvents();
-		for(int i=0; i < 4; i++)
+
+		glfwPollEvents();
+		if(state == AppState::SIMPLE_RENDER)
 		{
-			switch(glfwGetKey(window, ARROW_KEYS[i]))
+			// Events
+			for(int i=0; i < 4; i++)
+			{
+				switch(glfwGetKey(window, ARROW_KEYS[i]))
+				{
+					case GLFW_PRESS:
+						if(arrow_state[i] == GLFW_RELEASE)
+						{
+							int delta = i % 2 ? -1 : 1;
+							if(ROTATE_CAMERA && pos.color_playing == BLACK) delta = -delta;
+							if(i < 2) cursor.rank += delta;
+							else	  cursor.file += delta;
+						}
+						arrow_state[i] = GLFW_PRESS;
+						break;
+					case GLFW_RELEASE:
+						arrow_state[i] = GLFW_RELEASE;
+						break;
+				}
+			}
+			
+			
+			switch(glfwGetKey(window, GLFW_KEY_ENTER))
 			{
 				case GLFW_PRESS:
-					if(arrow_state[i] == GLFW_RELEASE)
+					if(enter_state == GLFW_RELEASE)
 					{
-						int delta = i % 2 ? -1 : 1;
-						if(i < 2) cursor.rank += delta;
-						else	  cursor.file += delta;
+
+						bool cursorToSelection = true;
+						if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
+						{
+
+							enteredMove = Move(selection, cursor);
+							
+							if(pos.getPieceAtCoord(enteredMove.from).type == PAWN && 
+							   enteredMove.to.rank == PAWN_PROMOTION_RANK[pos.color_playing])
+							{	
+								enteredMove.promotionType = QUEEN;
+							}
+
+							if(pos.doesMoveExist(enteredMove))
+							{
+								state = AppState::MOVE_ANIMATION;
+								animation_start_time = glfwGetTime();
+								/* pos.playMove(enteredMove, pos); */
+
+								selection = DEFAULT_INVALID_COORD;
+								cursorToSelection = false;
+							}
+						}
+						
+						if(cursorToSelection && pos.getPieceAtCoord(cursor).color == pos.color_playing)
+						{
+							selection = cursor;
+						}
+						
 					}
-					arrow_state[i] = GLFW_PRESS;
+					enter_state = GLFW_PRESS;
 					break;
 				case GLFW_RELEASE:
-					arrow_state[i] = GLFW_RELEASE;
+					enter_state = GLFW_RELEASE;
 					break;
 			}
 		}
 		
-		
-		switch(glfwGetKey(window, GLFW_KEY_ENTER))
+		if(state == AppState::CAMERA_ANIMATION)
 		{
-			case GLFW_PRESS:
-				if(enter_state == GLFW_RELEASE)
-				{
+			float animation_progress = (glfwGetTime() - animation_start_time) / CAMERA_MOVE_DURATION;
+			if(animation_progress >= 1.f)
+			{
+				state = AppState::SIMPLE_RENDER;
+				animation_progress = 1.f;
+			}
 
-					bool cursorToSelection = true;
-					if(!CoordEquals(selection, DEFAULT_INVALID_COORD))
-					{
-
-						enteredMove = Move(selection, cursor);
-						
-						if(pos.getPieceAtCoord(enteredMove.from).type == PAWN && 
-						   enteredMove.to.rank == PAWN_PROMOTION_RANK[pos.color_playing])
-						{	
-							enteredMove.promotionType = QUEEN;
-						}
-
-						if(pos.doesMoveExist(enteredMove))
-						{
-							state = AppState::MOVE_ANIMATION;
-							animation_start_time = glfwGetTime();
-							/* pos.playMove(enteredMove, pos); */
-
-							selection = DEFAULT_INVALID_COORD;
-							cursorToSelection = false;
-						}
-					}
-					
-					if(cursorToSelection && pos.getPieceAtCoord(cursor).color == pos.color_playing)
-					{
-						selection = cursor;
-					}
-					
-				}
-				enter_state = GLFW_PRESS;
-				break;
-			case GLFW_RELEASE:
-				enter_state = GLFW_RELEASE;
-				break;
+			float vs = pos.color_playing == WHITE ? -1.f : 1.f;
+			camera.position = glm::vec3( vs * 9.f * std::sin(animation_progress * glm::pi<float>()),
+										 5.f,
+										 vs * 9.f * std::cos(animation_progress * glm::pi<float>()));
+									    
 		}
 
 
