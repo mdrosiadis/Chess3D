@@ -405,7 +405,9 @@ Mesh::Mesh(
     const vector<vec2>& uvs,
     const vector<vec3>& normals,
     const Material& mtl)
-    : vertices{vertices}, uvs{uvs}, normals{normals}, mtl{mtl} {
+    : vertices{vertices}, uvs{uvs}, normals{normals} {
+
+    this->mtl = mtl;
     createContext();
 }
 
@@ -413,9 +415,15 @@ Mesh::Mesh(Mesh&& other)
     : vertices{std::move(other.vertices)}, normals{std::move(other.normals)},
     indexedVertices{std::move(other.indexedVertices)}, indexedNormals{std::move(other.indexedNormals)},
     uvs{std::move(other.uvs)}, indexedUVS{std::move(other.indexedUVS)},
-    indices{std::move(other.indices)}, mtl{std::move(other.mtl)},
-    VAO{other.VAO}, verticesVBO{other.verticesVBO}, normalsVBO{other.normalsVBO},
-    uvsVBO{other.uvsVBO}, elementVBO{other.elementVBO} {
+    indices{std::move(other.indices)}
+     {
+         this->mtl = other.mtl;
+    VAO = other.VAO;
+    verticesVBO = other.verticesVBO;
+    normalsVBO = other.normalsVBO;
+    elementVBO = other.elementVBO;
+    uvsVBO = other.uvsVBO;
+
     other.VAO = 0;
     other.verticesVBO = 0;
     other.normalsVBO = 0;

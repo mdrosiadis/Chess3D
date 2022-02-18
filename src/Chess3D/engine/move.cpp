@@ -37,7 +37,7 @@ void Move::DebugPrintMove() const
 
     if(promotionType != NO_PIECE)
     {
-        printf("%c", std::tolower(PIECE_DATA[promotionType].symbol));
+        printf("%c", tolower(PIECE_DATA[promotionType].symbol));
     }
 
     printf(" (%s)", algebraicNotation.c_str());

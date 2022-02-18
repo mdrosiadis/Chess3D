@@ -245,7 +245,7 @@ bool Position::isInCheck(PieceColor color)
     if(CoordEquals(kingPositions[color], DEFAULT_INVALID_COORD))
             findKings();
     
-    return AttackersTargetingCoord(kingPositions[color], OTHER_COLOR(color), (MoveTypes){1,1,1,1,1}) != 0;
+    return AttackersTargetingCoord(kingPositions[color], OTHER_COLOR(color), ALL_TYPES) != 0;
 }
 
 
@@ -362,8 +362,8 @@ void Position::playMove(const Move& move, Position& newPosition)
         newPosition.setPieceAtCoord(CASTLING_KING_START_COORD[color_playing], NO_PIECE_LITERAL);
         newPosition.setPieceAtCoord(CASTLING_ROOK_START_COORD[color_playing][move.castlingType], NO_PIECE_LITERAL);
 
-        newPosition.setPieceAtCoord(CASTLING_KING_TARGET_COORD[color_playing][move.castlingType], (Piece){KING, newPosition.color_playing});
-        newPosition.setPieceAtCoord(CASTLING_ROOK_TARGET_COORD[color_playing][move.castlingType], (Piece){ROOK, newPosition.color_playing});
+        newPosition.setPieceAtCoord(CASTLING_KING_TARGET_COORD[color_playing][move.castlingType], Piece{KING, newPosition.color_playing});
+        newPosition.setPieceAtCoord(CASTLING_ROOK_TARGET_COORD[color_playing][move.castlingType], Piece{ROOK, newPosition.color_playing});
 
         newPosition.castling_rights[newPosition.color_playing][SHORT_CASTLE] = false;
         newPosition.castling_rights[newPosition.color_playing][LONG_CASTLE]  = false;
@@ -397,8 +397,8 @@ void Position::playMove(const Move& move, Position& newPosition)
 
             if(move.from.rank == PAWN_STARTING_RANK[color_playing] &&
                     move.to.rank == (PAWN_STARTING_RANK[color_playing] + 2 * PAWN_MOVING_DIRECTION[color_playing]) &&
-                    (PieceEquals(getPieceAtCoord((Coord){move.to.file-1, move.to.rank}), (Piece){PAWN, OTHER_COLOR(color_playing)}) ||
-                     PieceEquals(getPieceAtCoord((Coord){move.to.file+1, move.to.rank}), (Piece){PAWN, OTHER_COLOR(color_playing)}) ))
+                    (PieceEquals(getPieceAtCoord(Coord(move.to.file-1, move.to.rank)), Piece{PAWN, OTHER_COLOR(color_playing)}) ||
+                     PieceEquals(getPieceAtCoord(Coord(move.to.file+1, move.to.rank)), Piece{PAWN, OTHER_COLOR(color_playing)}) ))
             {
                 newPosition.en_passant = Coord(move.from.file, move.from.rank + PAWN_MOVING_DIRECTION[color_playing]);
             }
@@ -414,7 +414,7 @@ void Position::playMove(const Move& move, Position& newPosition)
         newPosition.setPieceAtCoord(move.from, NO_PIECE_LITERAL);
 
 
-        if(move.promotionType != NO_PIECE) newPosition.setPieceAtCoord(move.to, (Piece){move.promotionType, color_playing});
+        if(move.promotionType != NO_PIECE) newPosition.setPieceAtCoord(move.to, Piece{move.promotionType, color_playing});
     }
 
     newPosition.color_playing = OTHER_COLOR(newPosition.color_playing);

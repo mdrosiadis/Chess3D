@@ -21,6 +21,7 @@ Thanks to:
 #include <wingdi.h>
 //#include <GL/gl.h>
 #include <GL/glew.h>
+#include <GL/wglew.h>
 #elif defined _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -1689,12 +1690,13 @@ int SOIL_has_extension(const char * ext_name_to_check) {
     } else {
         /* For OpenGL 3.0 and newer, walk through each available extension */
         glGetIntegerv(GL_NUM_EXTENSIONS, &ext_count);
+        /*
         for (i = 0; i < ext_count; i++) {
             if (0 == strcmp(ext_name_to_check,
                 (char const*) glGetStringi(GL_EXTENSIONS, i))) {
                 return 1;
             }
-        }
+        }*/
         return 0;
     }
 }

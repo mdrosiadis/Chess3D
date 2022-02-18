@@ -3,6 +3,8 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <stdexcept>
+
 using namespace std;
 
 #include "shader.h"

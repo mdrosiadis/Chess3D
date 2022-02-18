@@ -1,8 +1,11 @@
 #include <GL/glew.h>
 #include <glfw3.h>
 #include <SOIL.h>
-#include <string.h>
+#include <string>
 #include <iostream>
+#include <stdexcept>
+#include <cstring>
+
 #include "texture.h"
 using namespace std;
 

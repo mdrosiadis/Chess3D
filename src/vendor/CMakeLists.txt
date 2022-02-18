@@ -8,6 +8,11 @@ include_directories(
     glew-2.1.0/include/
 )
 
+set(OPENGL_LIBRARY
+		${OPENGL_LIBRARY}
+		${CMAKE_DL_LIBS}
+		${GLFW_LIBRARIES})
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 set(OPENGL_LIBRARY
     ${OPENGL_LIBRARY}
@@ -33,21 +38,23 @@ set(GLEW_HEADERS
 )
 
 
-add_library( GLEW STATIC
-    ${GLEW_SOURCE}
-    ${GLEW_INCLUDE}
-)
 
-target_link_libraries(GLEW
-    ${OPENGL_LIBRARY}
-    ${EXTRA_LIBS}
-)
+add_library( GLEW STATIC
+		${GLEW_SOURCE}
+		${GLEW_HEADERS}
+		)
 
 set_target_properties(GLEW
     PROPERTIES
     PROJECT_LABEL glew
     FOLDER "Libraries"
 )
+
+target_link_libraries(GLEW
+		${OPENGL_LIBRARY}
+		${EXTRA_LIBS}
+		)
+
 
 # SOIL
 add_subdirectory(Simple-OpenGL-Image-Library)

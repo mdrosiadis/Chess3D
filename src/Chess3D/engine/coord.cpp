@@ -22,7 +22,7 @@ void Coord::addDirection(int dir[2])
     rank += dir[1];
 }
 
-inline bool validCoord(Coord coord)
+bool validCoord(Coord coord)
 {
     return coord.file >= CoordFile::FILE_A && coord.file <= CoordFile::FILE_H && 
            coord.rank >= CoordRank::RANK_1 && coord.rank <= CoordRank::RANK_8;

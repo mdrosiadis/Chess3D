@@ -1,6 +1,6 @@
 #ifndef PIECETYPES_H
 #define PIECETYPES_H
-enum PieceType{PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, NO_PIECE};
+enum PieceType{PAWN=0, KNIGHT, BISHOP, ROOK, QUEEN, KING, NO_PIECE=-1};
 enum PieceColor{WHITE, BLACK, NO_COLOR};
 
 
@@ -29,6 +29,6 @@ struct Piece
     static Piece FromFENChar(char fenChar);
 };
 
-#define NO_PIECE_LITERAL (Piece){NO_PIECE, NO_COLOR}
+#define NO_PIECE_LITERAL Piece{NO_PIECE, NO_COLOR}
 
 #endif
