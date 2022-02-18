@@ -71,7 +71,7 @@ const Material pieceMaterials[2]{
 };
 
 const float ANIMATION_DURATION = 1.f;
-const int MAX_SMOKE_LEVELS = 50;
+const int MAX_SMOKE_LEVELS = 80;
 float animation_start_time;
 
 const std::string STARTING_POSITION_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -332,10 +332,12 @@ void renderScene(bool renderDepth=false)
 	{
 		int smokeLevel = 0;
 		int smokeRenderLevels;
-		if(animation_progress <= 0.5)
-			smokeRenderLevels = MAX_SMOKE_LEVELS * (animation_progress / 0.5f);
+		if(animation_progress <= 0.4)
+			smokeRenderLevels = MAX_SMOKE_LEVELS * (animation_progress / 0.3f);
+		else if(animation_progress >= 0.9f)
+			smokeRenderLevels = MAX_SMOKE_LEVELS * ((1 - animation_progress) / 0.1f);
 		else
-			smokeRenderLevels = MAX_SMOKE_LEVELS * ((1 - animation_progress) / 0.5f);
+			smokeRenderLevels = MAX_SMOKE_LEVELS;
 
 		glm::vec4 smokeColorData(glm::vec3(0.3f), 0.5f);
 		glm::vec3 smokeCenterData(-3.5f + enteredMove.to.file, 0, 3.5f - enteredMove.to.rank);
