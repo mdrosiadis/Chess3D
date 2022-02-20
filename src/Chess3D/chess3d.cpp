@@ -57,7 +57,7 @@ enum SquareStatus{CLEAR=0, CURSOR=1, MOVE_TARGETED=2, SELECTED=3, CHECKED=4, CHE
 
 const Material pieceMaterials[2]{
 	{
-		{ 0.25f, 0.20725f, 0.20725f, 0.922f },
+		{ 0.55f, 0.50725f, 0.50725f, 0.922f },
 		{1.0f, 0.829f, 0.829f, 0.922f },
 		{0.296648f, 0.296648f, 0.296648f, 0.922f },
 		11.264f
