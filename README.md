@@ -1,14 +1,15 @@
 # Chess3D - A 3d chess game built with OpenGL and C++
 
 ## Requirments
-	* OpenGL 3.3 or above
-	* cmake
+- OpenGL 3.3 or above
+- cmake
+- gcc or clang
 		
 ## Compiling
 
 Use cmake to make the build files
 ```sh
-$ git clone https://github.com/mdrosiadis/Chess3D.git
+$ git clone --recursive https://github.com/mdrosiadis/Chess3D.git
 $ cd Chess3D
 $ mkdir build && cd build
 $ cmake ..
