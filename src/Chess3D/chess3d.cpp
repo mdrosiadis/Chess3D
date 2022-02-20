@@ -65,8 +65,8 @@ const Material pieceMaterials[2]{
 	{
 		{0.05375f, 0.05f, 0.06625f, 0.82f },
 		{0.018275f, 0.017f, 0.022525f, 0.082f},
-		{0.0332741f, 0.0328634f, 0.0346435f, 0.082f },
-		5.4f
+		{0.332741f, 0.328634f, 0.346435f, 0.082f },
+		8.4f
 	}
 };
 
@@ -227,6 +227,7 @@ void renderScene(bool renderDepth=false)
     float duration = animation_distance * TIME_PER_SQUARE;
 
 	if(enteredMove.castlingType != NO_CASTLE) duration = 0.65f;
+	if(enteredMove.promotionType != NO_PIECE) duration = 1.f;
 
 	float animation_time = glfwGetTime() - animation_start_time;
 	float fall_time = -1.f;
