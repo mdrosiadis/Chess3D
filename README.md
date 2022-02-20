@@ -1,8 +1,9 @@
 # Chess3D - A 3d chess game built with OpenGL and C++
 
 ## Requirments
-	* OpenGL 3.3 or above
-	* cmake
+- OpenGL 3.3 or above
+- cmake
+- gcc or clang
 		
 ## Compiling
 
