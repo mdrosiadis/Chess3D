@@ -549,7 +549,7 @@ void createContext() {
 	create_smoke_data();
 
     camera = Camera(window);
-	camera.position = glm::vec3(0.f, 5.f, 9.f);
+	camera.position = glm::vec3(0.f, 5.f, pos.color_playing == WHITE || !ROTATE_CAMERA ? 9.f : -9.f);
 	camera.lookTo = glm::vec3(0.f, 0.f, 0.f);
 
     sceneLight = Light(window, {1.0f, 1.0f, 1.0f, 1.0f},
@@ -871,7 +871,11 @@ void initialize() {
     logGLParameters();
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+    if(argc > 1)
+    {
+        pos = Position(argv[1]);
+    }
     try {
         initialize();
         createContext();
