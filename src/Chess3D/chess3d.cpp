@@ -70,8 +70,9 @@ const Material pieceMaterials[2]{
 	}
 };
 
-const float ANIMATION_DURATION = 1.f;
+const float TIME_PER_SQUARE = 0.15f;
 const float CAMERA_MOVE_DURATION = 2.f;
+const float FALL_DURATION = 1.f;
 const int MAX_SMOKE_LEVELS = 80;
 
 const bool ROTATE_CAMERA = true;
@@ -93,21 +94,18 @@ Coord cursor(0, 0), selection(-1, -1);
 
 // Global variables
 GLFWwindow* window;
-GLuint chessboardShader, piecesShader, shadowShader, depthShader;
+GLuint chessboardShader, shadowShader, depthShader;
 GLuint projectionMatrixLocation, viewMatrixLocation, modelMatrixLocation;
-GLuint pieceProjection, pieceView, pieceModel, pieceColor;
+GLuint pieceProjection, pieceView, pieceModel;
 GLuint chessboardVAO, chessboardVBO, chessboardEBO;
 GLuint textureSampler, texture;
 GLuint KaLocation, KdLocation, KsLocation, NsLocation;
 GLuint LaLocation, LdLocation, LsLocation;
 GLuint lightPositionLocation;
-GLuint lightPowerLocation;
+GLuint lightPowerLocation, lightVPLocation;
 GLuint diffuseColorSampler; 
 GLuint depthMapSampler;
-GLuint lightVPLocation;
 GLuint lightDirectionLocation;
-GLuint lightFarPlaneLocation;
-GLuint lightNearPlaneLocation;
 GLuint shadowViewProjectionLocation, shadowModelLocation;
 GLuint depthFrameBuffer, depthTexture;
 GLuint colorsLocation;
@@ -116,6 +114,8 @@ GLuint selectionsLocation;
 GLuint smokeShader;
 GLuint smokeV, smokeP, smokeColor, smokeCenter, smokeStartLevel, smokeOffsets, smokeRandSeed;
 GLuint smokeVAO, smokeVBO, smokeEBO;
+
+GLuint clearRadiusLoc;
 
 int selections[8][8] = {CLEAR};
 
@@ -223,23 +223,47 @@ void renderScene(bool renderDepth=false)
 
     /* double tn = glfwGetTime(); */
     /* float offset = (tn / 3.0) - ((int) (tn / 3.0)); */
-	
-	float animation_time = glfwGetTime() - animation_start_time;
+	int animation_distance = std::max(std::abs(enteredMove.to.file - enteredMove.from.file), std::abs(enteredMove.to.rank - enteredMove.from.rank));
+    float duration = animation_distance * TIME_PER_SQUARE;
 
-	if(state == AppState::MOVE_ANIMATION && animation_time >= ANIMATION_DURATION) 
+	if(enteredMove.castlingType != NO_CASTLE) duration = 0.65f;
+
+	float animation_time = glfwGetTime() - animation_start_time;
+	float fall_time = -1.f;
+	float fall_progress = -1.f;
+
+	float animation_progress = std::min(animation_time / duration, 1.f);
+
+    // add time for braking animation
+    if(!CoordEquals(enteredMove.catpureTarget, DEFAULT_INVALID_COORD) && enteredMove.promotionType == NO_PIECE)
+    {
+
+        /* piece capturing entered he capture square */
+        if(animation_progress >= (1.f - (1.f / animation_distance)))
+        {
+            fall_time = animation_time - (1.f - (1.f / animation_distance)) * duration;
+            fall_progress = fall_time / FALL_DURATION;
+        }
+
+        duration += FALL_DURATION;
+    }
+
+	if(state == AppState::MOVE_ANIMATION && animation_time >= duration)
 	{
 		state = ROTATE_CAMERA ? AppState::CAMERA_ANIMATION : AppState::SIMPLE_RENDER;
 		animation_start_time = glfwGetTime();
 		pos.playMove(enteredMove, pos);
 	}
 	
-	float animation_progress = animation_time / ANIMATION_DURATION;
+
 
 	Coord c;
 	for(c.file=0; c.file < BOARD_SIZE; c.file++)
 	for(c.rank=0; c.rank < BOARD_SIZE; c.rank++)
 	{
-		Piece currentPiece = pos.getPieceAtCoord(c);
+        float clear_radius = -0.1f;
+
+	    Piece currentPiece = pos.getPieceAtCoord(c);
 		if(currentPiece.type == NO_PIECE) continue;
 		
 		modelMatrix = glm::translate(glm::mat4(1.0f), { -3.5f + c.file, 0.0f, 3.5f - c.rank});
@@ -282,12 +306,42 @@ void renderScene(bool renderDepth=false)
 			else if(CoordEquals(c, enteredMove.catpureTarget))
 			{
 				/* dont render taken piece */
-				if(animation_progress >= 0.5f) continue;
 
-				modelMatrix = glm::translate(glm::mat4(1.0f),
-										     glm::vec3(-3.5 + c.file,
-												       -4.0f * animation_progress,
-												 	    3.5 - c.rank));
+				if(enteredMove.promotionType != NO_PIECE)
+                {
+                    if(animation_progress >= 0.5f) continue;
+
+                    modelMatrix = glm::translate(glm::mat4(1.0f),
+                                                 glm::vec3(-3.5 + c.file,
+                                                           -4.0f * animation_progress,
+                                                           3.5 - c.rank));
+                }
+				else if(fall_progress >= 0.f)
+                {
+                    glm::vec3 takeDir = glm::normalize(glm::vec3(c.file - enteredMove.from.file, 0, -(c.rank - enteredMove.from.rank)));
+
+                    modelMatrix = glm::mat4(1.f);
+                    modelMatrix = glm::translate(modelMatrix, glm::vec3(-3.5 + c.file,
+                                                                        fall_progress < 0.75f ? 0.f : -0.15*(fall_progress-0.75f) / 0.25f,
+                                                                        3.5f - c.rank));
+
+                    if(fall_progress >= 0.5f)
+                    {
+//                        modelMatrix = glm::scale(modelMatrix, glm::vec3(1.f + 2 * (fall_progress - 0.5f),
+//                                                                        1.f,
+//                                                                        1.f + (fall_progress - 0.5f)));
+
+                        clear_radius = (fall_progress - 0.5f);
+                    }
+
+
+                    modelMatrix = glm::rotate(modelMatrix,
+                                              glm::radians(90.f * std::min(fall_progress, 0.5f) / 0.5f),
+                                              glm::cross(glm::vec3(0.f, 1.f, 0.f), takeDir));
+
+
+                }
+
 			}
 			else if(enteredMove.castlingType != NO_CASTLE && CoordEquals(c, CASTLING_ROOK_START_COORD[pos.color_playing][enteredMove.castlingType]))
 			{
@@ -319,6 +373,7 @@ void renderScene(bool renderDepth=false)
 			glUniformMatrix4fv(pieceProjection, 1, GL_FALSE, &camera.projectionMatrix[0][0]);
 			glUniformMatrix4fv(pieceView, 1, GL_FALSE, &camera.viewMatrix[0][0]);
 			glUniformMatrix4fv(pieceModel, 1, GL_FALSE, &modelMatrix[0][0]);
+			glUniform1f(clearRadiusLoc, clear_radius);
 
 			uploadLightToShader(shadowShader, sceneLight);
 			uploadMaterial(pieceMaterials[currentPiece.color]);
@@ -390,6 +445,7 @@ void createContext() {
     pieceProjection = glGetUniformLocation(shadowShader, "P");
     pieceView = glGetUniformLocation(shadowShader, "V");
     pieceModel = glGetUniformLocation(shadowShader, "M");
+    clearRadiusLoc = glGetUniformLocation(shadowShader, "clear_rad");
     // pieceColor = glGetUniformLocation(piecesShader, "color");
 
     colorsLocation = glGetUniformLocation(chessboardShader, "colors");

@@ -1,11 +1,12 @@
 #version 330 core
 
+in vec3 vpm;
+in float clear_radius;
 in vec3 vertex_position_worldspace;
 in vec3 vertex_position_cameraspace;
 in vec3 vertex_normal_cameraspace;
 in vec2 vertex_UV;
 in vec4 vertex_position_lightspace; // shading
-// in int
 
 uniform sampler2D shadowMapSampler;
 
@@ -36,11 +37,18 @@ out vec4 fragmentColor;
 void phong(float visibility);
 float ShadowCalculation(vec4 fragPositionLightspace);
 
-
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
 
 void main() {   
     
-    // Task 4.3
+    if(clear_radius > 0.f && (mod(length(vpm.xyz), 0.2) < 0.2 * clear_radius))
+    {
+        discard;
+        return;
+    }
+
     float shadow  = ShadowCalculation(vertex_position_lightspace);
 
     shadow = 0;

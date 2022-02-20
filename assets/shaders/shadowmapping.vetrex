@@ -8,7 +8,10 @@ uniform mat4 V;
 uniform mat4 M;
 uniform mat4 lightVP;
 
+uniform float clear_rad;
 
+out float clear_radius;
+out vec3 vpm;
 out vec3 vertex_position_worldspace;
 out vec3 vertex_position_cameraspace;
 out vec3 vertex_normal_cameraspace;
@@ -21,6 +24,8 @@ void main() {
     gl_Position =  P * V * M * vec4(vertexPosition_modelspace, 1);
     
     // FS
+    clear_radius = clear_rad;
+    vpm = vertexPosition_modelspace;
     vertex_position_worldspace = (M * vec4(vertexPosition_modelspace, 1)).xyz;
     vertex_position_cameraspace = (V * M * vec4(vertexPosition_modelspace, 1)).xyz;
     vertex_normal_cameraspace = (V * M * vec4(vertexNormal_modelspace, 0)).xyz; 

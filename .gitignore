@@ -2,3 +2,6 @@ build/
 .clangd/
 compile_commands.json
 assets/models/blenderfiles/
+.idea/
+.vs/
+cmake-build-debug/
